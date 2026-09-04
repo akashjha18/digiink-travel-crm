@@ -1,0 +1,9 @@
+# Optional — only needed for Redis (BullMQ background jobs). MySQL runs via
+# XAMPP directly on the host in this setup, so it's not included here.
+version: "3.9"
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"

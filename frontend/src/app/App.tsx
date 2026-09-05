@@ -3,7 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider, CssBaseline } from "@mui/material";
 import { theme } from "../theme/theme";
 import { AuthProvider } from "../hooks/useAuth";
-import { LoginPage } from "../pages/auth/LoginPage";
+import { ClientLoginPage } from "../pages/auth/ClientLoginPage";
+import { SuperAdminLoginPage } from "../pages/auth/SuperAdminLoginPage";
 import { VerifyOtpPage } from "../pages/auth/VerifyOtpPage";
 import { ChangePasswordPage } from "../pages/auth/ChangePasswordPage";
 import { OnboardingWizardPage } from "../pages/onboarding/OnboardingWizardPage";
@@ -53,7 +54,8 @@ export function App() {
         <AuthProvider>
           <BrowserRouter>
             <Routes>
-              <Route path="/login" element={<LoginPage />} />
+              <Route path="/login" element={<ClientLoginPage />} />
+              <Route path="/admin/login" element={<SuperAdminLoginPage />} />
               <Route path="/verify-otp" element={<VerifyOtpPage />} />
 
               <Route element={<ProtectedRoute allow={["CLIENT_USER"]} />}>

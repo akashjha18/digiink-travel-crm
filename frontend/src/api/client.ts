@@ -54,7 +54,11 @@ apiClient.interceptors.response.use(
 );
 
 function redirectToLogin() {
+  // Read the role before clearing it, so an expired super-admin session
+  // lands back on /admin/login rather than the client login page.
+  const role = localStorage.getItem("role");
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
-  window.location.href = "/login";
+  localStorage.removeItem("role");
+  window.location.href = role === "SUPER_ADMIN" ? "/admin/login" : "/login";
 }

@@ -11,6 +11,7 @@ import { VerifyOtpPage } from "../pages/auth/VerifyOtpPage";
 import { ChangePasswordPage } from "../pages/auth/ChangePasswordPage";
 import { OnboardingWizardPage } from "../pages/onboarding/OnboardingWizardPage";
 import { DashboardPage } from "../pages/client/DashboardPage";
+import { ProfilePage } from "../pages/client/ProfilePage";
 import { PaymentRenewalPage } from "../pages/client/PaymentRenewalPage";
 import { CustomersPage } from "../pages/customers/CustomersPage";
 import { CustomerDetailPage } from "../pages/customers/CustomerDetailPage";
@@ -69,6 +70,7 @@ export function App() {
 
                 <Route element={<ClientLayout />}>
                   <Route path="/app/dashboard" element={<DashboardPage />} />
+                  <Route path="/app/profile" element={<ProfilePage />} />
                   <Route path="/app/customers" element={<CustomersPage />} />
                   <Route path="/app/customers/:id" element={<CustomerDetailPage />} />
                   <Route path="/app/enquiries" element={<EnquiriesListPage />} />

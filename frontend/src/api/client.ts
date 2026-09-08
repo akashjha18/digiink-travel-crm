@@ -29,24 +29,37 @@ apiClient.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      if (!isRefreshing) {
-        isRefreshing = true;
-        try {
-          const { data } = await axios.post("/api/auth/refresh", { refreshToken });
-          localStorage.setItem("accessToken", data.data.accessToken);
-          pendingQueue.forEach((resolve) => resolve());
-          pendingQueue = [];
-        } catch {
-          redirectToLogin();
-          return Promise.reject(error);
-        } finally {
-          isRefreshing = false;
-        }
-      }
-
-      return new Promise((resolve) => {
+      // Queue this request BEFORE kicking off (or waiting on) the refresh
+      // call, not after. Previously, whichever request happened to be the
+      // one that triggered the actual refresh call queued itself only
+      // *after* `await`-ing the refresh — by which point the refresh's
+      // own `pendingQueue.forEach(...)` had already run and cleared the
+      // queue, so that request's promise was pushed into an
+      // already-flushed array and never resolved, hanging forever. Every
+      // 401'd request now goes through the same queue, resolved together
+      // in one flush once the refresh completes.
+      const retryPromise = new Promise((resolve) => {
         pendingQueue.push(() => resolve(apiClient(originalRequest)));
       });
+
+      if (!isRefreshing) {
+        isRefreshing = true;
+        (async () => {
+          try {
+            const { data } = await axios.post("/api/auth/refresh", { refreshToken });
+            localStorage.setItem("accessToken", data.data.accessToken);
+            pendingQueue.forEach((resolve) => resolve());
+            pendingQueue = [];
+          } catch {
+            pendingQueue = [];
+            redirectToLogin();
+          } finally {
+            isRefreshing = false;
+          }
+        })();
+      }
+
+      return retryPromise;
     }
 
     return Promise.reject(error);
@@ -54,7 +67,11 @@ apiClient.interceptors.response.use(
 );
 
 function redirectToLogin() {
+  // Read the role before clearing it, so an expired super-admin session
+  // lands back on /admin/login rather than the client login page.
+  const role = localStorage.getItem("role");
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
-  window.location.href = "/login";
+  localStorage.removeItem("role");
+  window.location.href = role === "SUPER_ADMIN" ? "/admin/login" : "/login";
 }

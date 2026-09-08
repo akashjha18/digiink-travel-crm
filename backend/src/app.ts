@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import path from "path";
 import { apiRouter } from "./routes";
 import { fail } from "./common/response";
 import { ApiError } from "./common/http-errors";
@@ -15,6 +16,7 @@ export function createApp() {
   app.use(morgan("dev"));
 
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
+  app.use("/uploads", express.static(path.resolve(__dirname, "../uploads")));
 
   app.use("/api", apiRouter);
 

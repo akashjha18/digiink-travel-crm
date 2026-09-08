@@ -86,9 +86,15 @@ const NAV_GROUPS = [
 export function ClientLayout() {
   const { logout } = useAuth();
   const [client, setClient] = useState<any>(null);
+  const [me, setMe] = useState<any>(null);
 
   useEffect(() => {
-    apiClient.get("/client/profile").then(({ data }) => setClient(data.data));
+    apiClient.get("/client/profile").then(({ data }) => setClient(data.data)).catch((err) => {
+      console.error("Failed to load /client/profile", err);
+    });
+    apiClient.get("/client/me").then(({ data }) => setMe(data.data)).catch((err) => {
+      console.error("Failed to load /client/me", err);
+    });
   }, []);
 
   const entitlements = client?.plan?.entitlements ?? {};
@@ -127,6 +133,7 @@ export function ClientLayout() {
           }}
         >
           <Avatar
+            src={me?.avatarUrl ?? undefined}
             sx={{
               bgcolor: "#2563eb",
               color: "#fff",
@@ -280,8 +287,25 @@ export function ClientLayout() {
             bgcolor: "rgba(0, 0, 0, 0.2)",
           }}
         >
-          <Box display="flex" alignItems="center" gap={1.5} minWidth={0}>
+          <Box
+            component={NavLink}
+            to="/app/profile"
+            display="flex"
+            alignItems="center"
+            gap={1.5}
+            minWidth={0}
+            sx={{
+              textDecoration: "none",
+              borderRadius: 2,
+              px: 1,
+              py: 0.5,
+              ml: -1,
+              flexGrow: 1,
+              "&:hover": { bgcolor: "rgba(255, 255, 255, 0.06)" },
+            }}
+          >
             <Avatar
+              src={me?.avatarUrl ?? undefined}
               sx={{
                 width: 36,
                 height: 36,
@@ -292,14 +316,14 @@ export function ClientLayout() {
                 border: "1px solid rgba(255, 255, 255, 0.12)",
               }}
             >
-              {initial}
+              {(me?.name ?? "?").trim().charAt(0).toUpperCase() || initial}
             </Avatar>
             <Box minWidth={0}>
               <Typography variant="body2" fontWeight={700} noWrap sx={{ color: "#f8fafc" }}>
-                {client?.ownerName ?? "Account Owner"}
+                {me?.name ?? "Account Owner"}
               </Typography>
               <Typography variant="caption" sx={{ color: "rgba(255, 255, 255, 0.45)", display: "block" }} noWrap>
-                Administrator
+                {me?.role?.name ?? (me?.isClientAdmin ? "Administrator" : "—")}
               </Typography>
             </Box>
           </Box>

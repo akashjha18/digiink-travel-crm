@@ -269,6 +269,7 @@ model User {
   client             Client    @relation(fields: [clientId], references: [id])
   name               String
   email              String    @unique
+  avatarUrl          String?
   passwordHash       String
   roleId             String
   role               Role      @relation(fields: [roleId], references: [id])

@@ -24,8 +24,29 @@ import { branchesRouter } from "../branches/branches.controller";
 import { whatsappRouter, whatsappWebhookRouter } from "../whatsapp/whatsapp.controller";
 import { customFieldsRouter } from "../custom-fields/custom-fields.controller";
 import { prisma } from "../db/prisma";
+import { z } from "zod";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { fail } from "../common/response";
+import { logTenantAction } from "../audit/audit.service";
 
 export const apiRouter = Router();
+
+const avatarDirectory = path.resolve(__dirname, "../../uploads/avatars");
+fs.mkdirSync(avatarDirectory, { recursive: true });
+const avatarUpload = multer({
+  storage: multer.diskStorage({
+    destination: avatarDirectory,
+    filename: (req, _file, callback) => {
+      callback(null, `${req.auth?.sub}-${Date.now()}${path.extname(_file.originalname).toLowerCase()}`);
+    },
+  }),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    callback(null, ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype));
+  },
+});
 
 apiRouter.use("/auth", authRouter);
 
@@ -61,6 +82,67 @@ apiRouter.use("/custom-fields", customFieldsRouter);
 
 apiRouter.get("/client/profile", authenticate, scopeTenant(), (req, res) => {
   return ok(res, req.client);
+});
+
+const profileUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  email: z.string().trim().email().optional(),
+});
+
+apiRouter.get("/client/me", authenticate, scopeTenant(["ACTIVE", "EXPIRING_SOON", "GRACE", "LOCKED"]), async (req, res, next) => {
+  try {
+    const user = await prisma.user.findFirstOrThrow({
+      where: { id: req.auth!.sub, clientId: req.clientId! },
+      select: {
+        id: true, name: true, email: true, avatarUrl: true, isClientAdmin: true,
+        lastLoginAt: true, createdAt: true,
+        role: { select: { name: true } }, branch: { select: { name: true } },
+        client: {
+          select: {
+            businessName: true, clientCode: true, ownerName: true, email: true, phone: true,
+            companyProfile: { select: { companyName: true, address: true, gstNumber: true, phone: true, email: true, businessType: true, currency: true } },
+          },
+        },
+      },
+    });
+    return ok(res, {
+      id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl,
+      isClientAdmin: user.isClientAdmin, lastLoginAt: user.lastLoginAt, createdAt: user.createdAt,
+      role: user.role, branch: user.branch, businessName: user.client.businessName,
+      clientCode: user.client.clientCode, ownerName: user.client.ownerName,
+      phone: user.client.phone, companyEmail: user.client.email, companyProfile: user.client.companyProfile,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+apiRouter.put("/client/me", authenticate, scopeTenant(["ACTIVE", "EXPIRING_SOON", "GRACE", "LOCKED"]), async (req, res, next) => {
+  try {
+    const input = profileUpdateSchema.parse(req.body);
+    const existing = await prisma.user.findFirstOrThrow({ where: { id: req.auth!.sub, clientId: req.clientId! } });
+    const user = await prisma.user.update({
+      where: { id: existing.id }, data: input,
+      select: { id: true, name: true, email: true, avatarUrl: true },
+    });
+    await logTenantAction({ clientId: req.clientId!, userId: existing.id, action: "UPDATE_PROFILE" });
+    return ok(res, user, "Profile updated");
+  } catch (err: any) {
+    if (err?.code === "P2002") return fail(res, 409, "That email address is already in use", "EMAIL_IN_USE");
+    next(err);
+  }
+});
+
+apiRouter.post("/client/me/avatar", authenticate, scopeTenant(["ACTIVE", "EXPIRING_SOON", "GRACE", "LOCKED"]), avatarUpload.single("avatar"), async (req, res, next) => {
+  try {
+    if (!req.file) return fail(res, 400, "Please upload a JPG, PNG or WEBP image", "INVALID_AVATAR");
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    const user = await prisma.user.update({ where: { id: req.auth!.sub }, data: { avatarUrl }, select: { avatarUrl: true } });
+    await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "UPDATE_PROFILE_AVATAR" });
+    return ok(res, user, "Profile picture updated");
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Dashboard metrics (SRS section 40). Starter tier only for now — the

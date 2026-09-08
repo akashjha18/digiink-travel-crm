@@ -119,6 +119,23 @@ CREATE TABLE `login_otps` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------
+-- password_reset_otps — short-lived password reset codes. Only a hash of the
+-- code is stored; userId is intentionally not a foreign key because reset
+-- requests can target either a Super Admin or a client user.
+-- -----------------------------------------------------------------------------
+DROP TABLE IF EXISTS `password_reset_otps`;
+CREATE TABLE `password_reset_otps` (
+  `id`         VARCHAR(191) NOT NULL,
+  `userId`     VARCHAR(191) NOT NULL,
+  `codeHash`   VARCHAR(191) NOT NULL,
+  `expiresAt`  DATETIME(3) NOT NULL,
+  `consumed`   TINYINT(1) NOT NULL DEFAULT 0,
+  `createdAt`  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `password_reset_otps_userId_idx` (`userId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------------------------------
 -- payment_logs
 -- -----------------------------------------------------------------------------
 DROP TABLE IF EXISTS `payment_logs`;

@@ -17,6 +17,7 @@ type Audience = "client" | "admin";
 const COPY: Record<Audience, {
   heading: string; subheading: string; emailPlaceholder: string;
   accentColor: string; accentHover: string; wrongRoleMessage: string; switchHref: string; switchLabel: string;
+  forgotPasswordHref: string;
 }> = {
   client: {
     heading: "DigiInk CRM",
@@ -27,6 +28,7 @@ const COPY: Record<Audience, {
     wrongRoleMessage: "This is a platform administrator account. Please use the admin login instead.",
     switchHref: "/admin/login",
     switchLabel: "Platform administrator? Sign in here",
+    forgotPasswordHref: "/forgot-password",
   },
   admin: {
     heading: "DigiInk Admin",
@@ -37,6 +39,7 @@ const COPY: Record<Audience, {
     wrongRoleMessage: "This account isn't a platform administrator. Please use the client login instead.",
     switchHref: "/login",
     switchLabel: "Client user? Sign in here",
+    forgotPasswordHref: "/admin/forgot-password",
   },
 };
 
@@ -175,17 +178,24 @@ export function LoginForm({ audience }: { audience: Audience }) {
         }}
       />
 
-      <FormControlLabel
-        control={
-          <Checkbox
-            size="small"
-            checked={rememberMe}
-            onChange={(e) => setRememberMe(e.target.checked)}
-          />
-        }
-        label={<Typography variant="body2">Remember Me</Typography>}
-        sx={{ mb: 1 }}
-      />
+      <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+        <FormControlLabel
+          control={
+            <Checkbox
+              size="small"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
+          }
+          label={<Typography variant="body2">Remember Me</Typography>}
+        />
+        <a
+          href={copy.forgotPasswordHref}
+          style={{ color: copy.accentColor, fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+        >
+          Forgot password?
+        </a>
+      </Box>
 
       <Button
         fullWidth

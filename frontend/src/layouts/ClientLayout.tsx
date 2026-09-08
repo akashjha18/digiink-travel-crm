@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
-  Box, List, ListItemButton, ListItemIcon, ListItemText, Typography, Avatar, IconButton,
+  Box,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Typography,
+  Avatar,
+  IconButton,
+  Chip,
+  Tooltip,
 } from "@mui/material";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import ContactPhoneRoundedIcon from "@mui/icons-material/ContactPhoneRounded";
@@ -26,29 +35,52 @@ import { apiClient } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 import { SubscriptionBanner } from "../components/SubscriptionBanner";
 
-const DRAWER_WIDTH = 260;
-const SIDEBAR_FROM = "#7a2e0e";
-const SIDEBAR_TO = "#c9560f";
+const DRAWER_WIDTH = 270;
 
-const ALL_NAV = [
-  { to: "/app/dashboard", label: "Dashboard", feature: null, icon: DashboardRoundedIcon },
-  { to: "/app/enquiries", label: "Enquiries", feature: "enquiry_crm", icon: ContactPhoneRoundedIcon },
-  { to: "/app/pipeline", label: "Pipeline", feature: "enquiry_crm", icon: TimelineRoundedIcon },
-  { to: "/app/customers", label: "Customers", feature: "enquiry_crm", icon: PeopleAltRoundedIcon },
-  { to: "/app/quotations", label: "Quotations", feature: "quotation", icon: RequestQuoteRoundedIcon },
-  { to: "/app/bookings", label: "Bookings", feature: "bookings", icon: EventAvailableRoundedIcon },
-  { to: "/app/receivables", label: "Receivables", feature: "payments", icon: AccountBalanceWalletRoundedIcon },
-  { to: "/app/invoices", label: "Invoices", feature: "payments", icon: ReceiptLongRoundedIcon },
-  { to: "/app/reports", label: "Reports", feature: "basic_reports", icon: BarChartRoundedIcon },
-  { to: "/app/automation", label: "Automation", feature: "workflow_automation", icon: BoltRoundedIcon },
-  { to: "/app/branches", label: "Branches", feature: "multi_branch", icon: AccountTreeRoundedIcon },
-  { to: "/app/whatsapp", label: "WhatsApp", feature: "integrations", icon: WhatsAppIcon },
-  { to: "/app/custom-fields", label: "Custom Fields", feature: "custom_modules", icon: TuneRoundedIcon },
-  { to: "/app/trips", label: "Trips", feature: "bookings", icon: DirectionsCarRoundedIcon },
-  { to: "/app/drivers", label: "Drivers", feature: "drivers", icon: BadgeRoundedIcon },
-  { to: "/app/vehicles", label: "Vehicles", feature: "vehicles", icon: LocalShippingRoundedIcon },
-  { to: "/app/staff", label: "Staff", feature: null, icon: GroupRoundedIcon },
-  { to: "/app/roles", label: "Roles", feature: null, icon: AdminPanelSettingsRoundedIcon },
+const NAV_GROUPS = [
+  {
+    title: "OVERVIEW",
+    items: [
+      { to: "/app/dashboard", label: "Dashboard", feature: null, icon: DashboardRoundedIcon },
+      { to: "/app/reports", label: "Analytics & Reports", feature: "basic_reports", icon: BarChartRoundedIcon },
+    ],
+  },
+  {
+    title: "SALES & CRM",
+    items: [
+      { to: "/app/enquiries", label: "Enquiries", feature: "enquiry_crm", icon: ContactPhoneRoundedIcon },
+      { to: "/app/pipeline", label: "Pipeline", feature: "enquiry_crm", icon: TimelineRoundedIcon },
+      { to: "/app/customers", label: "Customers", feature: "enquiry_crm", icon: PeopleAltRoundedIcon },
+      { to: "/app/quotations", label: "Quotations", feature: "quotation", icon: RequestQuoteRoundedIcon },
+    ],
+  },
+  {
+    title: "OPERATIONS & TRIPS",
+    items: [
+      { to: "/app/bookings", label: "Bookings", feature: "bookings", icon: EventAvailableRoundedIcon },
+      { to: "/app/trips", label: "Trips Dispatch", feature: "bookings", icon: DirectionsCarRoundedIcon },
+      { to: "/app/drivers", label: "Drivers", feature: "drivers", icon: BadgeRoundedIcon },
+      { to: "/app/vehicles", label: "Fleet Vehicles", feature: "vehicles", icon: LocalShippingRoundedIcon },
+    ],
+  },
+  {
+    title: "FINANCE & BILLING",
+    items: [
+      { to: "/app/receivables", label: "Receivables", feature: "payments", icon: AccountBalanceWalletRoundedIcon },
+      { to: "/app/invoices", label: "Invoices", feature: "payments", icon: ReceiptLongRoundedIcon },
+    ],
+  },
+  {
+    title: "WORKFLOWS & SCALE",
+    items: [
+      { to: "/app/automation", label: "Automations", feature: "workflow_automation", icon: BoltRoundedIcon },
+      { to: "/app/whatsapp", label: "WhatsApp Suite", feature: "integrations", icon: WhatsAppIcon },
+      { to: "/app/branches", label: "Branches", feature: "multi_branch", icon: AccountTreeRoundedIcon },
+      { to: "/app/custom-fields", label: "Custom Fields", feature: "custom_modules", icon: TuneRoundedIcon },
+      { to: "/app/staff", label: "Staff Members", feature: null, icon: GroupRoundedIcon },
+      { to: "/app/roles", label: "Roles & Access", feature: null, icon: AdminPanelSettingsRoundedIcon },
+    ],
+  },
 ];
 
 export function ClientLayout() {
@@ -59,24 +91,19 @@ export function ClientLayout() {
     apiClient.get("/client/profile").then(({ data }) => setClient(data.data));
   }, []);
 
-  // Sidebar hides modules the plan doesn't include (SRS section 42) — the
-  // real enforcement is the backend's requireEntitlement guard; this is
-  // UX only, so a hidden link never substitutes for the API-level check.
   const entitlements = client?.plan?.entitlements ?? {};
-  const nav = ALL_NAV.filter((item) => !item.feature || entitlements[item.feature]);
-
   const businessName: string = client?.businessName ?? "Digiink Travel CRM";
   const initial = businessName.trim().charAt(0).toUpperCase() || "D";
 
   return (
-    <Box display="flex" minHeight="100vh" sx={{ bgcolor: "#f4f6f9" }}>
-      {/* Sidebar */}
+    <Box display="flex" minHeight="100vh" sx={{ bgcolor: "#f8fafc" }}>
+      {/* Sidebar Navigation */}
       <Box
         component="nav"
         sx={{
           width: DRAWER_WIDTH,
           flexShrink: 0,
-          background: `linear-gradient(180deg, ${SIDEBAR_FROM} 0%, ${SIDEBAR_TO} 100%)`,
+          background: "linear-gradient(180deg, #090d16 0%, #0f172a 60%, #111827 100%)",
           color: "#fff",
           display: "flex",
           flexDirection: "column",
@@ -84,90 +111,231 @@ export function ClientLayout() {
           top: 0,
           left: 0,
           height: "100vh",
+          borderRight: "1px solid rgba(255, 255, 255, 0.08)",
+          zIndex: 1200,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 3, py: 3 }}>
-          <Avatar sx={{ bgcolor: "#fff", color: SIDEBAR_TO, fontWeight: 700, width: 44, height: 44 }}>
+        {/* Brand Header */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.75,
+            px: 3,
+            py: 3,
+            borderBottom: "1px solid rgba(255, 255, 255, 0.07)",
+          }}
+        >
+          <Avatar
+            sx={{
+              bgcolor: "#2563eb",
+              color: "#fff",
+              fontWeight: 800,
+              width: 42,
+              height: 42,
+              borderRadius: 2.5,
+              boxShadow: "0 4px 12px rgba(37, 99, 235, 0.35)",
+            }}
+          >
             {initial}
           </Avatar>
           <Box minWidth={0}>
-            <Typography variant="subtitle1" fontWeight={700} noWrap>
+            <Typography variant="subtitle1" fontWeight={800} noWrap sx={{ color: "#f8fafc", letterSpacing: "-0.01em" }}>
               {businessName}
             </Typography>
-            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)" }}>
-              CRM Panel
-            </Typography>
+            <Box display="flex" alignItems="center" gap={1} mt={0.25}>
+              <Chip
+                label={client?.plan?.name || "Client"}
+                size="small"
+                sx={{
+                  height: 18,
+                  fontSize: "0.65rem",
+                  fontWeight: 800,
+                  bgcolor: "rgba(37, 99, 235, 0.2)",
+                  color: "#60a5fa",
+                  borderRadius: 1,
+                  border: "1px solid rgba(37, 99, 235, 0.3)",
+                }}
+              />
+              <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.45)", fontSize: "0.7rem" }}>
+                CRM Hub
+              </Typography>
+            </Box>
           </Box>
         </Box>
 
-        <Typography
-          variant="caption"
-          sx={{ color: "rgba(255,255,255,0.55)", letterSpacing: 1, px: 3, mb: 1, fontWeight: 600 }}
+        {/* Grouped Nav Items */}
+        <Box
+          sx={{
+            px: 2,
+            py: 2,
+            flexGrow: 1,
+            overflowY: "auto",
+            "&::-webkit-scrollbar": { width: 4 },
+            "&::-webkit-scrollbar-thumb": {
+              bgcolor: "rgba(255, 255, 255, 0.12)",
+              borderRadius: 4,
+            },
+          }}
         >
-          MAIN MENU
-        </Typography>
+          {NAV_GROUPS.map((group) => {
+            const visibleItems = group.items.filter(
+              (item) => !item.feature || entitlements[item.feature]
+            );
+            if (visibleItems.length === 0) return null;
 
-        <List sx={{ px: 2, flexGrow: 1, overflowY: "auto" }}>
-          {nav.map((item) => {
-            const Icon = item.icon;
             return (
-              <ListItemButton
-                key={item.to}
-                component={NavLink}
-                to={item.to}
-                sx={{
-                  borderRadius: 2,
-                  mb: 0.5,
-                  color: "rgba(255,255,255,0.85)",
-                  "&.active": {
-                    bgcolor: "rgba(255,255,255,0.16)",
-                    color: "#fff",
-                    fontWeight: 600,
-                  },
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.1)" },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
-                  <Icon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText primary={item.label} primaryTypographyProps={{ fontSize: 14 }} />
-              </ListItemButton>
+              <Box key={group.title} sx={{ mb: 2.5 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "rgba(255, 255, 255, 0.35)",
+                    letterSpacing: "0.08em",
+                    px: 1.5,
+                    mb: 1,
+                    display: "block",
+                    fontWeight: 800,
+                    fontSize: "0.68rem",
+                  }}
+                >
+                  {group.title}
+                </Typography>
+
+                <List disablePadding>
+                  {visibleItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <ListItemButton
+                        key={item.to}
+                        component={NavLink}
+                        to={item.to}
+                        sx={{
+                          borderRadius: 2.25,
+                          mb: 0.5,
+                          py: 1,
+                          px: 1.5,
+                          color: "rgba(255, 255, 255, 0.65)",
+                          transition: "all 0.18s ease-in-out",
+                          position: "relative",
+                          "&.active": {
+                            bgcolor: "rgba(37, 99, 235, 0.16)",
+                            color: "#ffffff",
+                            fontWeight: 700,
+                            "& .MuiListItemIcon-root": {
+                              color: "#60a5fa",
+                            },
+                            "&::before": {
+                              content: '""',
+                              position: "absolute",
+                              left: 0,
+                              top: "18%",
+                              bottom: "18%",
+                              width: 3.5,
+                              borderRadius: "0 4px 4px 0",
+                              bgcolor: "#3b82f6",
+                              boxShadow: "0 0 10px #3b82f6",
+                            },
+                          },
+                          "&:hover": {
+                            bgcolor: "rgba(255, 255, 255, 0.06)",
+                            color: "#f8fafc",
+                          },
+                        }}
+                      >
+                        <ListItemIcon
+                          sx={{
+                            minWidth: 34,
+                            color: "inherit",
+                            transition: "color 0.15s ease",
+                          }}
+                        >
+                          <Icon sx={{ fontSize: 20 }} />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={item.label}
+                          primaryTypographyProps={{
+                            fontSize: "0.86rem",
+                            fontWeight: "inherit",
+                            letterSpacing: "-0.01em",
+                          }}
+                        />
+                      </ListItemButton>
+                    );
+                  })}
+                </List>
+              </Box>
             );
           })}
-        </List>
+        </Box>
 
+        {/* Profile & Logout Footer */}
         <Box
           sx={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            gap: 1,
             px: 2.5,
             py: 2,
-            borderTop: "1px solid rgba(255,255,255,0.15)",
+            borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+            bgcolor: "rgba(0, 0, 0, 0.2)",
           }}
         >
           <Box display="flex" alignItems="center" gap={1.5} minWidth={0}>
-            <Avatar sx={{ width: 34, height: 34, bgcolor: "rgba(255,255,255,0.2)" }}>
+            <Avatar
+              sx={{
+                width: 36,
+                height: 36,
+                bgcolor: "rgba(255, 255, 255, 0.08)",
+                color: "#e2e8f0",
+                fontSize: "0.85rem",
+                fontWeight: 700,
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+              }}
+            >
               {initial}
             </Avatar>
             <Box minWidth={0}>
-              <Typography variant="body2" fontWeight={600} noWrap>
+              <Typography variant="body2" fontWeight={700} noWrap sx={{ color: "#f8fafc" }}>
                 {client?.ownerName ?? "Account Owner"}
               </Typography>
-              <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.65)" }}>
+              <Typography variant="caption" sx={{ color: "rgba(255, 255, 255, 0.45)", display: "block" }} noWrap>
                 Administrator
               </Typography>
             </Box>
           </Box>
-          <IconButton onClick={logout} size="small" sx={{ color: "#fff", bgcolor: "rgba(255,255,255,0.12)" }}>
-            <LogoutRoundedIcon fontSize="small" />
-          </IconButton>
+
+          <Tooltip title="Sign Out">
+            <IconButton
+              onClick={logout}
+              size="small"
+              sx={{
+                color: "rgba(255, 255, 255, 0.65)",
+                bgcolor: "rgba(255, 255, 255, 0.06)",
+                borderRadius: 2,
+                p: 0.9,
+                "&:hover": {
+                  bgcolor: "rgba(239, 68, 68, 0.15)",
+                  color: "#f87171",
+                },
+              }}
+            >
+              <LogoutRoundedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
 
-      {/* Main content */}
-      <Box component="main" flexGrow={1} sx={{ ml: `${DRAWER_WIDTH}px`, width: `calc(100% - ${DRAWER_WIDTH}px)` }}>
+      {/* Main Content Viewport */}
+      <Box
+        component="main"
+        flexGrow={1}
+        sx={{
+          ml: `${DRAWER_WIDTH}px`,
+          width: `calc(100% - ${DRAWER_WIDTH}px)`,
+          minHeight: "100vh",
+          bgcolor: "#f8fafc",
+        }}
+      >
         {client && <SubscriptionBanner status={client.subscriptionStatus} expiry={client.subscriptionExpiry} />}
         <Outlet />
       </Box>

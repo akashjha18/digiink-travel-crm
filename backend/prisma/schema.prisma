@@ -159,6 +159,24 @@ model LoginOtp {
   @@map("login_otps")
 }
 
+// Deliberately a separate table from LoginOtp (same shape) rather than a
+// shared `purpose` column: a code issued for one flow must never validate
+// against the other, and two tables make that guarantee structural instead
+// of relying on every query remembering to filter by purpose. userId has
+// no FK, same as LoginOtp — it's looked up across both SuperAdminUser and
+// User by email in the controller, so it can't be a relation to either.
+model PasswordResetOtp {
+  id        String   @id @default(cuid())
+  userId    String
+  codeHash  String
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("password_reset_otps")
+}
+
 model PaymentLog {
   id            String   @id @default(cuid())
   clientId      String

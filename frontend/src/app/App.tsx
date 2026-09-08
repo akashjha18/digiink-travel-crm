@@ -5,6 +5,8 @@ import { theme } from "../theme/theme";
 import { AuthProvider } from "../hooks/useAuth";
 import { ClientLoginPage } from "../pages/auth/ClientLoginPage";
 import { SuperAdminLoginPage } from "../pages/auth/SuperAdminLoginPage";
+import { ClientForgotPasswordPage } from "../pages/auth/ClientForgotPasswordPage";
+import { AdminForgotPasswordPage } from "../pages/auth/AdminForgotPasswordPage";
 import { VerifyOtpPage } from "../pages/auth/VerifyOtpPage";
 import { ChangePasswordPage } from "../pages/auth/ChangePasswordPage";
 import { OnboardingWizardPage } from "../pages/onboarding/OnboardingWizardPage";
@@ -56,6 +58,8 @@ export function App() {
             <Routes>
               <Route path="/login" element={<ClientLoginPage />} />
               <Route path="/admin/login" element={<SuperAdminLoginPage />} />
+              <Route path="/forgot-password" element={<ClientForgotPasswordPage />} />
+              <Route path="/admin/forgot-password" element={<AdminForgotPasswordPage />} />
               <Route path="/verify-otp" element={<VerifyOtpPage />} />
 
               <Route element={<ProtectedRoute allow={["CLIENT_USER"]} />}>

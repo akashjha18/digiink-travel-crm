@@ -170,6 +170,22 @@ CREATE TABLE `super_admin_users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------
+-- password_reset_tokens
+-- -----------------------------------------------------------------------------
+DROP TABLE IF EXISTS `password_reset_tokens`;
+CREATE TABLE `password_reset_tokens` (
+  `id`         VARCHAR(191) NOT NULL,
+  `userId`     VARCHAR(191) NOT NULL,
+  `userType`   ENUM('SUPER_ADMIN', 'CLIENT_USER') NOT NULL,
+  `tokenHash`  VARCHAR(191) NOT NULL,
+  `expiresAt`  DATETIME(3) NOT NULL,
+  `consumed`   TINYINT(1) NOT NULL DEFAULT 0,
+  `createdAt`  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  KEY `password_reset_tokens_userId_userType_idx` (`userId`, `userType`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------------------------------
 -- super_admin_audit_logs
 -- -----------------------------------------------------------------------------
 DROP TABLE IF EXISTS `super_admin_audit_logs`;

@@ -9,6 +9,7 @@ import { logTenantAction } from "../audit/audit.service";
 import { authenticate } from "../guards/authenticate";
 import { scopeTenant } from "../guards/tenant-scope.guard";
 import { issueLoginOtp, verifyLoginOtp } from "./otp.service";
+import { issuePasswordResetOtp, verifyPasswordResetOtp } from "./password-reset.service";
 
 export const authRouter = Router();
 
@@ -118,6 +119,74 @@ authRouter.post("/resend-otp", async (req, res, next) => {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: pending.sub } });
     await issueLoginOtp(user.id, user.email);
     return ok(res, {}, "Code resent");
+  } catch (err) {
+    return next(err);
+  }
+});
+
+const forgotPasswordSchema = z.object({ email: z.string().email() });
+
+/**
+ * Works for both Super Admin and client-user accounts — one endpoint,
+ * looked up across both tables by email. Always returns the same generic
+ * message whether or not the email matches anything, and whether or not
+ * that account is active, so this can't be used to enumerate accounts.
+ */
+authRouter.post("/forgot-password", async (req, res, next) => {
+  try {
+    const { email } = forgotPasswordSchema.parse(req.body);
+
+    const superAdmin = await prisma.superAdminUser.findUnique({ where: { email } });
+    if (superAdmin && superAdmin.isActive) {
+      await issuePasswordResetOtp(superAdmin.id, superAdmin.email);
+    } else {
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (user && user.isActive) {
+        await issuePasswordResetOtp(user.id, user.email);
+      }
+    }
+
+    return ok(res, {}, "If an account exists with that email, a 6-digit code has been sent.");
+  } catch (err) {
+    return next(err);
+  }
+});
+
+const resetPasswordSchema = z.object({
+  email: z.string().email(),
+  otp: z.string().length(6),
+  newPassword: z.string().min(8),
+});
+
+authRouter.post("/reset-password", async (req, res, next) => {
+  try {
+    const { email, otp, newPassword } = resetPasswordSchema.parse(req.body);
+
+    const superAdmin = await prisma.superAdminUser.findUnique({ where: { email } });
+    if (superAdmin) {
+      const isValid = await verifyPasswordResetOtp(superAdmin.id, otp);
+      if (!isValid) return fail(res, 400, "This code is invalid or has expired.", "INVALID_RESET_OTP");
+
+      await prisma.superAdminUser.update({
+        where: { id: superAdmin.id },
+        data: { passwordHash: await hashPassword(newPassword) },
+      });
+      return ok(res, {}, "Password updated");
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return fail(res, 400, "This code is invalid or has expired.", "INVALID_RESET_OTP");
+
+    const isValid = await verifyPasswordResetOtp(user.id, otp);
+    if (!isValid) return fail(res, 400, "This code is invalid or has expired.", "INVALID_RESET_OTP");
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: await hashPassword(newPassword), mustChangePassword: false },
+    });
+    await logTenantAction({ clientId: user.clientId, userId: user.id, action: "PASSWORD_RESET" });
+
+    return ok(res, {}, "Password updated");
   } catch (err) {
     return next(err);
   }

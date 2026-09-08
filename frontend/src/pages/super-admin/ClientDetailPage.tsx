@@ -38,7 +38,7 @@ export function ClientDetailPage() {
 
   async function forceReset(userId: string) {
     const { data } = await apiClient.post(`/super-admin/clients/${id}/users/${userId}/force-password-reset`);
-    setResetResult({ userId, password: data.data.temporaryPassword });
+    setResetResult({ userId, password: String(data.data.temporaryPassword ?? "") });
   }
 
   if (!client) return <Box p={4}>Loading…</Box>;
@@ -99,7 +99,7 @@ export function ClientDetailPage() {
                 <TableCell>{u.isActive ? "Active" : "Deactivated"}</TableCell>
                 <TableCell>
                   <Button size="small" onClick={() => forceReset(u.id)}>Force Password Reset</Button>
-                  {resetResult?.userId === u.id && (
+                  {resetResult && resetResult.userId === u.id && resetResult.password && (
                     <Typography variant="caption" display="block" color="success.main">New temp password: {resetResult.password}</Typography>
                   )}
                 </TableCell>

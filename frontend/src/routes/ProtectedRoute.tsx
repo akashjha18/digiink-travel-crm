@@ -12,13 +12,8 @@ import type { UserRole } from "../types/auth";
 export function ProtectedRoute({ allow }: { allow: UserRole[] }) {
   const { auth } = useAuth();
 
-  // Two separate login pages now exist (client vs. super-admin), so an
-  // unauthenticated or wrong-role visitor is bounced to whichever one
-  // actually matches the route they tried to reach.
-  const loginPath = allow.includes("SUPER_ADMIN") ? "/admin/login" : "/login";
-
-  if (!auth) return <Navigate to={loginPath} replace />;
-  if (!allow.includes(auth.role)) return <Navigate to={loginPath} replace />;
+  if (!auth) return <Navigate to="/login" replace />;
+  if (!allow.includes(auth.role)) return <Navigate to="/login" replace />;
 
   // A LOCKED client must only ever reach the payment-renewal page,
   // regardless of which URL they typed — per SRS section 43.

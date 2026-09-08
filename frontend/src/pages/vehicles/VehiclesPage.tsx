@@ -1,97 +1,641 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
-  Box, Typography, Button, Table, TableHead, TableRow, TableCell, TableBody,
-  Paper, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
-  Chip, Alert,
+  Box,
+  Typography,
+  Button,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
+  Chip,
+  Alert,
+  InputAdornment,
+  Avatar,
+  TablePagination,
+  IconButton,
+  Tooltip,
+  CircularProgress,
+  Grid,
 } from "@mui/material";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import DirectionsCarRoundedIcon from "@mui/icons-material/DirectionsCarRounded";
+import AirlineSeatReclineNormalRoundedIcon from "@mui/icons-material/AirlineSeatReclineNormalRounded";
+import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import EventBusyRoundedIcon from "@mui/icons-material/EventBusyRounded";
+import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
 import { apiClient } from "../../api/client";
 
 function expiryChip(date: string | null) {
-  if (!date) return <Chip size="small" label="Not set" />;
+  if (!date) {
+    return (
+      <Chip
+        size="small"
+        label="Not set"
+        sx={{
+          fontWeight: 600,
+          fontSize: "0.72rem",
+          bgcolor: "#f1f5f9",
+          color: "#64748b",
+          borderRadius: "6px",
+        }}
+      />
+    );
+  }
+
   const days = Math.ceil((new Date(date).getTime() - Date.now()) / 86400000);
-  if (days < 0) return <Chip size="small" label={`Expired ${new Date(date).toLocaleDateString()}`} color="error" />;
-  if (days <= 30) return <Chip size="small" label={`Expires in ${days}d`} color="warning" />;
-  return <Chip size="small" label={new Date(date).toLocaleDateString()} />;
+  const formattedDate = new Date(date).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  if (days < 0) {
+    return (
+      <Chip
+        size="small"
+        icon={<EventBusyRoundedIcon style={{ fontSize: 13 }} />}
+        label={`Expired ${formattedDate}`}
+        sx={{
+          fontWeight: 700,
+          fontSize: "0.72rem",
+          bgcolor: "#fef2f2",
+          color: "#b91c1c",
+          border: "1px solid #fecaca",
+          borderRadius: "6px",
+        }}
+      />
+    );
+  }
+
+  if (days <= 30) {
+    return (
+      <Chip
+        size="small"
+        icon={<WarningAmberRoundedIcon style={{ fontSize: 13 }} />}
+        label={`Expires in ${days}d`}
+        sx={{
+          fontWeight: 700,
+          fontSize: "0.72rem",
+          bgcolor: "#fffbeb",
+          color: "#b45309",
+          border: "1px solid #fde68a",
+          borderRadius: "6px",
+        }}
+      />
+    );
+  }
+
+  return (
+    <Chip
+      size="small"
+      label={formattedDate}
+      sx={{
+        fontWeight: 600,
+        fontSize: "0.72rem",
+        bgcolor: "#f8fafc",
+        border: "1px solid #e2e8f0",
+        color: "#334155",
+        borderRadius: "6px",
+      }}
+    />
+  );
 }
 
 export function VehiclesPage() {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
   const [form, setForm] = useState({
-    vehicleType: "", registrationNumber: "", capacity: 4,
-    rcExpiry: "", insuranceExpiry: "", permitExpiry: "", assignedDriverId: "",
+    vehicleType: "",
+    registrationNumber: "",
+    capacity: 4,
+    rcExpiry: "",
+    insuranceExpiry: "",
+    permitExpiry: "",
+    assignedDriverId: "",
   });
 
   function load() {
-    apiClient.get("/vehicles").then(({ data }) => setVehicles(data.data));
-    apiClient.get("/vehicles/alerts/expiring").then(({ data }) => setAlerts(data.data)).catch(() => {});
-    apiClient.get("/drivers").then(({ data }) => setDrivers(data.data)).catch(() => {});
+    setLoading(true);
+    apiClient
+      .get("/vehicles")
+      .then(({ data }) => setVehicles(data.data ?? []))
+      .catch(() => setVehicles([]))
+      .finally(() => setLoading(false));
+
+    apiClient
+      .get("/vehicles/alerts/expiring")
+      .then(({ data }) => setAlerts(data.data ?? []))
+      .catch(() => {});
+
+    apiClient
+      .get("/drivers")
+      .then(({ data }) => setDrivers(data.data ?? []))
+      .catch(() => {});
   }
-  useEffect(load, []);
+
+  useEffect(() => {
+    load();
+  }, []);
 
   async function handleCreate() {
-    await apiClient.post("/vehicles", { ...form, capacity: Number(form.capacity) });
-    setOpen(false);
-    load();
+    try {
+      setCreating(true);
+      await apiClient.post("/vehicles", {
+        ...form,
+        capacity: Number(form.capacity),
+        assignedDriverId: form.assignedDriverId || undefined,
+        rcExpiry: form.rcExpiry || undefined,
+        insuranceExpiry: form.insuranceExpiry || undefined,
+        permitExpiry: form.permitExpiry || undefined,
+      });
+      setOpen(false);
+      setForm({
+        vehicleType: "",
+        registrationNumber: "",
+        capacity: 4,
+        rcExpiry: "",
+        insuranceExpiry: "",
+        permitExpiry: "",
+        assignedDriverId: "",
+      });
+      load();
+    } finally {
+      setCreating(false);
+    }
   }
 
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter((v) => {
+      const q = searchQuery.toLowerCase();
+      const reg = v.registrationNumber?.toLowerCase() ?? "";
+      const type = v.vehicleType?.toLowerCase() ?? "";
+      const driver = v.assignedDriver?.name?.toLowerCase() ?? "";
+      return reg.includes(q) || type.includes(q) || driver.includes(q);
+    });
+  }, [vehicles, searchQuery]);
+
+  const paginatedVehicles = useMemo(() => {
+    const start = page * rowsPerPage;
+    return filteredVehicles.slice(start, start + rowsPerPage);
+  }, [filteredVehicles, page, rowsPerPage]);
+
   return (
-    <Box p={4}>
-      <Box display="flex" justifyContent="space-between" mb={2}>
-        <Typography variant="h4">Vehicles</Typography>
-        <Button variant="contained" onClick={() => setOpen(true)}>+ Add Vehicle</Button>
+    <Box sx={{ p: { xs: 2.5, md: 4.5 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
+      {/* Top Header */}
+      <Box
+        display="flex"
+        flexDirection={{ xs: "column", sm: "row" }}
+        justifyContent="space-between"
+        alignItems={{ xs: "flex-start", sm: "center" }}
+        gap={2}
+        mb={3.5}
+      >
+        <Box>
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <Typography variant="h4" fontWeight={900} sx={{ color: "#0f172a", letterSpacing: "-0.03em" }}>
+              Fleet Vehicles
+            </Typography>
+            <Chip
+              label={`${vehicles.length} Units`}
+              size="small"
+              icon={<LocalShippingRoundedIcon style={{ fontSize: 14 }} />}
+              sx={{
+                bgcolor: "#eff6ff",
+                color: "#2563eb",
+                fontWeight: 800,
+                fontSize: "0.72rem",
+                borderRadius: "6px",
+              }}
+            />
+          </Box>
+          <Typography variant="body2" color="text.secondary" mt={0.5}>
+            Monitor transport inventory, seating capacity, driver assignments, and statutory document renewals.
+          </Typography>
+        </Box>
+
+        <Button
+          variant="contained"
+          startIcon={<AddRoundedIcon />}
+          onClick={() => setOpen(true)}
+          sx={{
+            bgcolor: "#2563eb",
+            borderRadius: 2.5,
+            px: 2.5,
+            py: 1,
+            textTransform: "none",
+            fontWeight: 700,
+            boxShadow: "0 4px 14px rgba(37, 99, 235, 0.25)",
+            "&:hover": { bgcolor: "#1d4ed8" },
+          }}
+        >
+          Add Vehicle
+        </Button>
       </Box>
 
+      {/* Compliance / Expiry Alert Banner */}
       {alerts.length > 0 && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          {alerts.length} vehicle{alerts.length > 1 ? "s have" : " has"} a document expiring within 30 days or already expired.
+        <Alert
+          severity="warning"
+          icon={<WarningAmberRoundedIcon fontSize="inherit" />}
+          sx={{
+            mb: 3,
+            borderRadius: 2.5,
+            border: "1px solid #fde68a",
+            bgcolor: "#fffbeb",
+            color: "#92400e",
+            fontWeight: 600,
+            "& .MuiAlert-icon": { color: "#d97706" },
+          }}
+        >
+          Compliance Warning: <strong>{alerts.length}</strong> vehicle
+          {alerts.length > 1 ? "s have" : " has"} statutory documents (RC, Insurance, or Permit) expiring within 30 days or already lapsed.
         </Alert>
       )}
 
-      <Paper>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Registration</TableCell><TableCell>Type</TableCell><TableCell>Capacity</TableCell>
-              <TableCell>RC</TableCell><TableCell>Insurance</TableCell><TableCell>Permit</TableCell><TableCell>Assigned Driver</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {vehicles.map((v) => (
-              <TableRow key={v.id}>
-                <TableCell>{v.registrationNumber}</TableCell>
-                <TableCell>{v.vehicleType}</TableCell>
-                <TableCell>{v.capacity}</TableCell>
-                <TableCell>{expiryChip(v.rcExpiry)}</TableCell>
-                <TableCell>{expiryChip(v.insuranceExpiry)}</TableCell>
-                <TableCell>{expiryChip(v.permitExpiry)}</TableCell>
-                <TableCell>{v.assignedDriver?.name ?? "Unassigned"}</TableCell>
-              </TableRow>
-            ))}
-            {vehicles.length === 0 && <TableRow><TableCell colSpan={7}>No vehicles yet.</TableCell></TableRow>}
-          </TableBody>
-        </Table>
+      {/* Search & Action Bar */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          mb: 3,
+          borderRadius: 3,
+          border: "1px solid #e2e8f0",
+          bgcolor: "#ffffff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 2,
+        }}
+      >
+        <TextField
+          size="small"
+          placeholder="Search by registration plate, vehicle model, driver..."
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPage(0);
+          }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchRoundedIcon fontSize="small" sx={{ color: "#94a3b8" }} />
+              </InputAdornment>
+            ),
+          }}
+          sx={{
+            flex: { xs: "1 1 100%", sm: "0 1 380px" },
+            "& .MuiOutlinedInput-root": {
+              borderRadius: 2,
+              bgcolor: "#f8fafc",
+            },
+          }}
+        />
+
+        <Tooltip title="Refresh Fleet">
+          <span>
+            <IconButton
+              onClick={load}
+              disabled={loading}
+              sx={{
+                bgcolor: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: 2,
+                "&:hover": { bgcolor: "#f1f5f9" },
+              }}
+            >
+              <RefreshRoundedIcon fontSize="small" sx={{ color: "#475569" }} />
+            </IconButton>
+          </span>
+        </Tooltip>
       </Paper>
 
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Add Vehicle</DialogTitle>
-        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
-          <TextField label="Vehicle Type" placeholder="e.g. Sedan, SUV, Tempo Traveller" value={form.vehicleType} onChange={(e) => setForm({ ...form, vehicleType: e.target.value })} />
-          <TextField label="Registration Number" value={form.registrationNumber} onChange={(e) => setForm({ ...form, registrationNumber: e.target.value })} />
-          <TextField label="Capacity" type="number" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) as any })} />
-          <TextField label="RC Expiry" type="date" InputLabelProps={{ shrink: true }} value={form.rcExpiry} onChange={(e) => setForm({ ...form, rcExpiry: e.target.value })} />
-          <TextField label="Insurance Expiry" type="date" InputLabelProps={{ shrink: true }} value={form.insuranceExpiry} onChange={(e) => setForm({ ...form, insuranceExpiry: e.target.value })} />
-          <TextField label="Permit Expiry" type="date" InputLabelProps={{ shrink: true }} value={form.permitExpiry} onChange={(e) => setForm({ ...form, permitExpiry: e.target.value })} />
-          <TextField select label="Assigned Driver (optional)" value={form.assignedDriverId} onChange={(e) => setForm({ ...form, assignedDriverId: e.target.value })}>
-            <MenuItem value="">None</MenuItem>
-            {drivers.map((d) => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}
+      {/* Main Vehicles Table */}
+      <Paper
+        elevation={0}
+        sx={{
+          borderRadius: 3.5,
+          border: "1px solid #e2e8f0",
+          overflow: "hidden",
+          bgcolor: "#ffffff",
+          boxShadow: "0 4px 16px rgba(16, 24, 40, 0.03)",
+        }}
+      >
+        <Table sx={{ minWidth: 850 }}>
+          <TableHead sx={{ bgcolor: "#fafcff" }}>
+            <TableRow sx={{ borderBottom: "1px solid #eef2f6" }}>
+              <TableCell sx={{ fontWeight: 800, color: "#64748b", py: 2.2, px: 3, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
+                REGISTRATION PLATE
+              </TableCell>
+              <TableCell sx={{ fontWeight: 800, color: "#64748b", py: 2.2, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
+                MODEL & TYPE
+              </TableCell>
+              <TableCell sx={{ fontWeight: 800, color: "#64748b", py: 2.2, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
+                SEATING CAPACITY
+              </TableCell>
+              <TableCell sx={{ fontWeight: 800, color: "#64748b", py: 2.2, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
+                RC EXPIRY
+              </TableCell>
+              <TableCell sx={{ fontWeight: 800, color: "#64748b", py: 2.2, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
+                INSURANCE
+              </TableCell>
+              <TableCell sx={{ fontWeight: 800, color: "#64748b", py: 2.2, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
+                PERMIT
+              </TableCell>
+              <TableCell align="right" sx={{ fontWeight: 800, color: "#64748b", py: 2.2, px: 3, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
+                ASSIGNED DRIVER
+              </TableCell>
+            </TableRow>
+          </TableHead>
+
+          <TableBody>
+            {paginatedVehicles.map((v) => (
+              <TableRow
+                key={v.id}
+                hover
+                sx={{
+                  transition: "background-color 0.15s ease",
+                  "&:hover": { bgcolor: "#fbfcfe !important" },
+                  "&:last-child td": { border: 0 },
+                }}
+              >
+                {/* Plate & Icon */}
+                <TableCell sx={{ py: 2, px: 3 }}>
+                  <Box display="flex" alignItems="center" gap={1.75}>
+                    <Avatar
+                      sx={{
+                        width: 38,
+                        height: 38,
+                        bgcolor: "#eff6ff",
+                        color: "#2563eb",
+                        borderRadius: 2,
+                      }}
+                    >
+                      <DirectionsCarRoundedIcon fontSize="small" />
+                    </Avatar>
+                    <Box>
+                      <Typography
+                        variant="body2"
+                        fontFamily="monospace"
+                        fontWeight={900}
+                        sx={{
+                          bgcolor: "#f1f5f9",
+                          px: 1,
+                          py: 0.25,
+                          borderRadius: 1.5,
+                          color: "#0f172a",
+                          display: "inline-block",
+                          letterSpacing: "0.02em",
+                        }}
+                      >
+                        {v.registrationNumber}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </TableCell>
+
+                {/* Model & Type */}
+                <TableCell sx={{ py: 2 }}>
+                  <Typography variant="body2" fontWeight={700} color="#1e293b">
+                    {v.vehicleType}
+                  </Typography>
+                </TableCell>
+
+                {/* Capacity */}
+                <TableCell sx={{ py: 2 }}>
+                  <Box display="flex" alignItems="center" gap={0.75}>
+                    <AirlineSeatReclineNormalRoundedIcon sx={{ fontSize: 16, color: "#94a3b8" }} />
+                    <Typography variant="body2" fontWeight={600} color="#334155">
+                      {v.capacity} Seats
+                    </Typography>
+                  </Box>
+                </TableCell>
+
+                {/* Statutory Renewals */}
+                <TableCell sx={{ py: 2 }}>{expiryChip(v.rcExpiry)}</TableCell>
+                <TableCell sx={{ py: 2 }}>{expiryChip(v.insuranceExpiry)}</TableCell>
+                <TableCell sx={{ py: 2 }}>{expiryChip(v.permitExpiry)}</TableCell>
+
+                {/* Assigned Driver */}
+                <TableCell align="right" sx={{ py: 2, px: 3 }}>
+                  <Box display="inline-flex" alignItems="center" gap={0.75}>
+                    <BadgeRoundedIcon sx={{ fontSize: 15, color: "#94a3b8" }} />
+                    <Typography
+                      variant="body2"
+                      fontWeight={600}
+                      color={v.assignedDriver ? "#1e293b" : "#94a3b8"}
+                    >
+                      {v.assignedDriver?.name ?? "Unassigned"}
+                    </Typography>
+                  </Box>
+                </TableCell>
+              </TableRow>
+            ))}
+
+            {filteredVehicles.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} sx={{ py: 8, textAlign: "center" }}>
+                  <Box display="flex" flexDirection="column" alignItems="center" gap={1}>
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        bgcolor: "#eff6ff",
+                        color: "#2563eb",
+                        mb: 0.5,
+                      }}
+                    >
+                      <LocalShippingRoundedIcon fontSize="medium" />
+                    </Avatar>
+                    <Typography variant="body1" fontWeight={700} sx={{ color: "#0f172a" }}>
+                      {searchQuery ? "No matching vehicles found" : "No vehicles in inventory"}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {searchQuery
+                        ? "Check plate registration formatting or model keywords."
+                        : "Enroll vehicles to link inventory to quotes, trips, and driver rosters."}
+                    </Typography>
+                  </Box>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+
+        <TablePagination
+          rowsPerPageOptions={[5, 10, 25]}
+          component="div"
+          count={filteredVehicles.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={(_, newPage) => setPage(newPage)}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
+          sx={{ borderTop: "1px solid #f1f5f9" }}
+        />
+      </Paper>
+
+      {/* Add Vehicle Modal */}
+      <Dialog
+        open={open}
+        onClose={() => !creating && setOpen(false)}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{ sx: { borderRadius: 3.5, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, color: "#0f172a", pb: 1 }}>
+          Enroll Fleet Vehicle
+        </DialogTitle>
+
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: "10px !important" }}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={7}>
+              <TextField
+                size="small"
+                label="Vehicle Model / Type"
+                placeholder="e.g. Innova Crysta, Urbania, Sedan"
+                value={form.vehicleType}
+                onChange={(e) => setForm({ ...form, vehicleType: e.target.value })}
+                required
+                fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={5}>
+              <TextField
+                size="small"
+                label="Seating Capacity"
+                type="number"
+                value={form.capacity}
+                onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
+                required
+                fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Grid>
+          </Grid>
+
+          <TextField
+            size="small"
+            label="Registration Number"
+            placeholder="e.g. DL-01-AB-1234"
+            value={form.registrationNumber}
+            onChange={(e) => setForm({ ...form, registrationNumber: e.target.value })}
+            required
+            fullWidth
+            sx={{
+              "& .MuiOutlinedInput-root": { borderRadius: 2 },
+              "& input": { textTransform: "uppercase", fontFamily: "monospace", fontWeight: 700 },
+            }}
+          />
+
+          <Typography variant="caption" fontWeight={800} color="#64748b" textTransform="uppercase" letterSpacing="0.04em" mt={0.5}>
+            Statutory Document Compliance (Optional)
+          </Typography>
+
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                size="small"
+                label="RC Expiry"
+                type="date"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={form.rcExpiry}
+                onChange={(e) => setForm({ ...form, rcExpiry: e.target.value })}
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                size="small"
+                label="Insurance Expiry"
+                type="date"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={form.insuranceExpiry}
+                onChange={(e) => setForm({ ...form, insuranceExpiry: e.target.value })}
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                size="small"
+                label="Permit Expiry"
+                type="date"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={form.permitExpiry}
+                onChange={(e) => setForm({ ...form, permitExpiry: e.target.value })}
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Grid>
+          </Grid>
+
+          <TextField
+            select
+            size="small"
+            label="Assign Dedicated Driver (Optional)"
+            value={form.assignedDriverId}
+            onChange={(e) => setForm({ ...form, assignedDriverId: e.target.value })}
+            fullWidth
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+          >
+            <MenuItem value="">
+              <em>None (Unassigned)</em>
+            </MenuItem>
+            {drivers.map((d) => (
+              <MenuItem key={d.id} value={d.id}>
+                {d.name} {d.contact ? `(${d.contact})` : ""}
+              </MenuItem>
+            ))}
           </TextField>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleCreate} disabled={!form.vehicleType || !form.registrationNumber}>Add</Button>
+
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={() => setOpen(false)}
+            disabled={creating}
+            sx={{ textTransform: "none", fontWeight: 600, color: "#64748b" }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleCreate}
+            disabled={creating || !form.vehicleType.trim() || !form.registrationNumber.trim()}
+            startIcon={creating ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : null}
+            sx={{
+              bgcolor: "#2563eb",
+              borderRadius: 2,
+              textTransform: "none",
+              fontWeight: 700,
+              px: 2.5,
+              "&:hover": { bgcolor: "#1d4ed8" },
+            }}
+          >
+            {creating ? "Enrolling..." : "Save Vehicle"}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

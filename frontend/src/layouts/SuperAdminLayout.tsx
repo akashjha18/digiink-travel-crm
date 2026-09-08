@@ -7,7 +7,7 @@ import MarkEmailUnreadRoundedIcon from "@mui/icons-material/MarkEmailUnreadRound
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import { useAuth } from "../hooks/useAuth";
-import logo from "../assets/digiink-logo.jpeg";
+import logo from "../assets/digiink-logo.svg";
 
 const NAV = [
   { to: "/super-admin/dashboard", label: "Dashboard", icon: DashboardRoundedIcon },

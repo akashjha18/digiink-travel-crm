@@ -67,8 +67,14 @@ export function EnquiriesListPage() {
     customerId: "",
     newCustomerName: "",
     newCustomerPhone: "",
+    newCustomerEmail: "",
     source: "",
+    pickupLocation: "",
     destination: "",
+    travelDate: "",
+    vehicleService: "",
+    notes: "",
+    followUpDate: "",
     assignTo: "NONE" as "NONE" | "MANUAL" | "ROUND_ROBIN",
     assignedToId: "",
   });
@@ -96,14 +102,19 @@ export function EnquiriesListPage() {
       setCreating(true);
       const payload: any = {
         source: form.source || undefined,
+        pickupLocation: form.pickupLocation || undefined,
         destination: form.destination || undefined,
+        travelDate: form.travelDate || undefined,
+        vehicleService: form.vehicleService || undefined,
+        notes: form.notes || undefined,
+        followUpDate: form.followUpDate || undefined,
         assignTo: form.assignTo,
         assignedToId: form.assignTo === "MANUAL" ? form.assignedToId : undefined,
       };
       if (useExisting) {
         payload.customerId = form.customerId;
       } else {
-        payload.newCustomer = { name: form.newCustomerName, phone: form.newCustomerPhone };
+        payload.newCustomer = { name: form.newCustomerName, phone: form.newCustomerPhone, email: form.newCustomerEmail || undefined };
       }
       await apiClient.post("/enquiries", payload);
       setOpen(false);
@@ -111,8 +122,14 @@ export function EnquiriesListPage() {
         customerId: "",
         newCustomerName: "",
         newCustomerPhone: "",
+        newCustomerEmail: "",
         source: "",
+        pickupLocation: "",
         destination: "",
+        travelDate: "",
+        vehicleService: "",
+        notes: "",
+        followUpDate: "",
         assignTo: "NONE",
         assignedToId: "",
       });
@@ -148,10 +165,10 @@ export function EnquiriesListPage() {
       >
         <Box>
           <Typography variant="h4" fontWeight={900} sx={{ color: "#0f172a", letterSpacing: "-0.03em" }}>
-            Customer Enquiries
+            Leads
           </Typography>
           <Typography variant="body2" color="text.secondary" mt={0.5}>
-            Manage incoming inquiries, travel routes, assignment distribution, and sales progression.
+            Manage incoming leads, travel details, assignment distribution, and sales progression.
           </Typography>
         </Box>
 
@@ -170,7 +187,7 @@ export function EnquiriesListPage() {
             "&:hover": { bgcolor: "#1d4ed8" },
           }}
         >
-          New Enquiry
+          Add Lead
         </Button>
       </Box>
 
@@ -460,7 +477,7 @@ export function EnquiriesListPage() {
                       <ContactPhoneRoundedIcon fontSize="medium" />
                     </Avatar>
                     <Typography variant="body1" fontWeight={700} sx={{ color: "#0f172a" }}>
-                      {searchQuery || statusFilter ? "No matching enquiries found" : "No enquiries logged yet"}
+                      {searchQuery || statusFilter ? "No matching leads found" : "No leads added yet"}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       {searchQuery || statusFilter
@@ -489,7 +506,7 @@ export function EnquiriesListPage() {
         />
       </Paper>
 
-      {/* New Enquiry Creation Modal */}
+      {/* Lead creation modal */}
       <Dialog
         open={open}
         onClose={() => !creating && setOpen(false)}
@@ -498,7 +515,7 @@ export function EnquiriesListPage() {
         PaperProps={{ sx: { borderRadius: 3.5, p: 1 } }}
       >
         <DialogTitle sx={{ fontWeight: 900, color: "#0f172a", pb: 1 }}>
-          Create Customer Enquiry
+          Add Lead
         </DialogTitle>
 
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: "10px !important" }}>
@@ -558,28 +575,68 @@ export function EnquiriesListPage() {
                 onChange={(e) => setForm({ ...form, newCustomerPhone: e.target.value })}
                 fullWidth
               />
+              <TextField
+                size="small"
+                type="email"
+                label="Email"
+                placeholder="Optional"
+                value={form.newCustomerEmail}
+                onChange={(e) => setForm({ ...form, newCustomerEmail: e.target.value })}
+                fullWidth
+              />
             </>
           )}
 
-          {/* Route Info */}
+          {/* Trip details */}
           <Box display="flex" gap={2}>
             <TextField
               size="small"
-              label="Pickup / Source"
-              placeholder="e.g. Airport, Mumbai"
-              value={form.source}
-              onChange={(e) => setForm({ ...form, source: e.target.value })}
+              label="Pickup Location"
+              placeholder="e.g. Jaipur"
+              value={form.pickupLocation}
+              onChange={(e) => setForm({ ...form, pickupLocation: e.target.value, source: e.target.value })}
               fullWidth
             />
             <TextField
               size="small"
-              label="Destination"
-              placeholder="e.g. Pune, Goa"
+              label="Drop Location"
+              placeholder="e.g. Jhunjhunu"
               value={form.destination}
               onChange={(e) => setForm({ ...form, destination: e.target.value })}
               fullWidth
             />
           </Box>
+
+          <Box display="flex" gap={2}>
+            <TextField
+              size="small"
+              type="datetime-local"
+              label="Journey Date & Time"
+              value={form.travelDate}
+              onChange={(e) => setForm({ ...form, travelDate: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Vehicle / Service Type"
+              placeholder="e.g. Tempo Traveller"
+              value={form.vehicleService}
+              onChange={(e) => setForm({ ...form, vehicleService: e.target.value })}
+              fullWidth
+            />
+          </Box>
+
+          <TextField
+            multiline
+            minRows={3}
+            size="small"
+            label="Requirement / Notes"
+            placeholder="What did the customer ask for? Any notes for the team..."
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            fullWidth
+          />
 
           {/* Assignment Settings */}
           <TextField
@@ -611,6 +668,16 @@ export function EnquiriesListPage() {
               ))}
             </TextField>
           )}
+
+          <TextField
+            size="small"
+            type="date"
+            label="Follow-Up Date (optional)"
+            value={form.followUpDate}
+            onChange={(e) => setForm({ ...form, followUpDate: e.target.value })}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
         </DialogContent>
 
         <DialogActions sx={{ p: 2 }}>
@@ -638,7 +705,7 @@ export function EnquiriesListPage() {
               "&:hover": { bgcolor: "#1d4ed8" },
             }}
           >
-            {creating ? "Creating..." : "Create Enquiry"}
+            {creating ? "Creating..." : "Add Lead"}
           </Button>
         </DialogActions>
       </Dialog>

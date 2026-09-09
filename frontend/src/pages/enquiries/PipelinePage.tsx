@@ -4,9 +4,12 @@ import {
   Box,
   Typography,
   Paper,
-  Card,
-  CardContent,
   Link,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
   Select,
   MenuItem,
   Chip,
@@ -23,7 +26,7 @@ import RouteRoundedIcon from "@mui/icons-material/RouteRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
 import ArrowForwardIosRoundedIcon from "@mui/icons-material/ArrowForwardIosRounded";
-import ViewKanbanRoundedIcon from "@mui/icons-material/ViewKanbanRounded";
+import ViewListRoundedIcon from "@mui/icons-material/ViewListRounded";
 import { apiClient } from "../../api/client";
 
 const STAGES = ["NEW", "CONTACTED", "QUOTED", "NEGOTIATION", "WON", "LOST"];
@@ -102,9 +105,9 @@ export function PipelinePage() {
               Deal Pipeline
             </Typography>
             <Chip
-              label={`${totalCount} Active Deals`}
+              label={`${totalCount} Leads`}
               size="small"
-              icon={<ViewKanbanRoundedIcon style={{ fontSize: 15 }} />}
+              icon={<ViewListRoundedIcon style={{ fontSize: 15 }} />}
               sx={{
                 bgcolor: "#eff6ff",
                 color: "#2563eb",
@@ -115,7 +118,7 @@ export function PipelinePage() {
             />
           </Box>
           <Typography variant="body2" color="text.secondary" mt={0.5}>
-            Track deals across conversion stages and transition statuses in real-time.
+            A structured view of every lead, grouped by its current conversion stage.
           </Typography>
         </Box>
 
@@ -141,7 +144,7 @@ export function PipelinePage() {
             }}
           />
 
-          <Tooltip title="Refresh Board">
+          <Tooltip title="Refresh Pipeline">
             <span>
               <IconButton
                 onClick={load}
@@ -160,51 +163,49 @@ export function PipelinePage() {
         </Box>
       </Box>
 
-      {/* Kanban Columns Swimlane */}
-      <Box
-        sx={{
-          display: "flex",
-          gap: 2.5,
-          overflowX: "auto",
-          alignItems: "flex-start",
-          pb: 2.5,
-          "&::-webkit-scrollbar": { height: 6 },
-          "&::-webkit-scrollbar-thumb": { bgcolor: "#cbd5e1", borderRadius: 4 },
-        }}
-      >
+      {/* Stage overview */}
+      <Box display="grid" gridTemplateColumns={{ xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)", lg: "repeat(6, 1fr)" }} gap={1.25} mb={2.5}>
         {STAGES.map((stage) => {
           const config = STAGE_CONFIG[stage] ?? STAGE_CONFIG.NEW;
           const stageEnquiries = filterEnquiries(grouped[stage] ?? []);
+          return (
+            <Paper key={stage} elevation={0} sx={{ p: 1.5, border: "1px solid #e2e8f0", borderTop: `3px solid ${config.dot}`, borderRadius: 2.25, bgcolor: "#fff" }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" gap={1}>
+                <Typography variant="caption" fontWeight={800} color="#475569" noWrap>{config.label}</Typography>
+                <Typography variant="h6" fontWeight={900} color="#0f172a" lineHeight={1}>{stageEnquiries.length}</Typography>
+              </Box>
+            </Paper>
+          );
+        })}
+      </Box>
 
+      {/* Structured stage sections */}
+      <Box display="flex" flexDirection="column" gap={1.5}>
+        {STAGES.map((stage) => {
+          const config = STAGE_CONFIG[stage] ?? STAGE_CONFIG.NEW;
+          const stageEnquiries = filterEnquiries(grouped[stage] ?? []);
           return (
             <Paper
               key={stage}
               elevation={0}
               sx={{
-                flex: "0 0 300px",
-                width: 300,
-                borderRadius: 3.5,
+                borderRadius: 2.5,
                 border: "1px solid #e2e8f0",
-                bgcolor: "#f1f5f9",
-                p: 2,
-                display: "flex",
-                flexDirection: "column",
-                maxHeight: "calc(100vh - 200px)",
+                bgcolor: "#fff",
+                overflow: "hidden",
               }}
             >
-              {/* Column Header */}
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} px={0.5}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" px={2} py={1.25} sx={{ bgcolor: config.bg, borderBottom: "1px solid #e2e8f0" }}>
                 <Box display="flex" alignItems="center" gap={1.2}>
                   <Box
                     sx={{
-                      width: 9,
-                      height: 9,
+                      width: 8,
+                      height: 8,
                       borderRadius: "50%",
                       bgcolor: config.dot,
-                      boxShadow: `0 0 8px ${config.dot}`,
                     }}
                   />
-                  <Typography variant="subtitle2" fontWeight={800} sx={{ color: "#0f172a", fontSize: "0.86rem" }}>
+                  <Typography variant="subtitle2" fontWeight={900} sx={{ color: "#0f172a", fontSize: "0.82rem" }}>
                     {config.label}
                   </Typography>
                 </Box>
@@ -221,143 +222,49 @@ export function PipelinePage() {
                   }}
                 />
               </Box>
-
-              {/* Cards Container */}
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 1.75,
-                  overflowY: "auto",
-                  pr: 0.5,
-                  "&::-webkit-scrollbar": { width: 4 },
-                  "&::-webkit-scrollbar-thumb": { bgcolor: "#cbd5e1", borderRadius: 4 },
-                }}
-              >
-                {stageEnquiries.map((e) => {
+              {stageEnquiries.length > 0 ? <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: "#fafcff" }}>
+                    <TableCell sx={{ py: 1, fontSize: "0.68rem", fontWeight: 800, color: "#94a3b8", letterSpacing: "0.05em" }}>LEAD</TableCell>
+                    <TableCell sx={{ py: 1, fontSize: "0.68rem", fontWeight: 800, color: "#94a3b8", letterSpacing: "0.05em" }}>ROUTE</TableCell>
+                    <TableCell sx={{ py: 1, fontSize: "0.68rem", fontWeight: 800, color: "#94a3b8", letterSpacing: "0.05em" }}>ASSIGNED TO</TableCell>
+                    <TableCell sx={{ py: 1, fontSize: "0.68rem", fontWeight: 800, color: "#94a3b8", letterSpacing: "0.05em" }}>ADDED</TableCell>
+                    <TableCell align="right" sx={{ py: 1, fontSize: "0.68rem", fontWeight: 800, color: "#94a3b8", letterSpacing: "0.05em" }}>MOVE</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>{stageEnquiries.map((e) => {
                   const isMoving = movingId === e.id;
-
                   return (
-                    <Card
+                    <TableRow
                       key={e.id}
-                      elevation={0}
                       sx={{
-                        borderRadius: 2.75,
-                        border: "1px solid #e2e8f0",
-                        bgcolor: "#ffffff",
-                        transition: "all 0.2s ease",
-                        "&:hover": {
-                          borderColor: "#cbd5e1",
-                          boxShadow: "0 6px 16px -4px rgba(15, 23, 42, 0.08)",
-                          transform: "translateY(-2px)",
-                        },
+                        "&:last-child td": { borderBottom: 0 },
+                        "&:hover": { bgcolor: "#f8fafc" },
                       }}
                     >
-                      <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
-                        {/* Header: Name & Link */}
-                        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-                          <Link
-                            component={RouterLink}
-                            to={`/app/enquiries/${e.id}`}
-                            underline="none"
-                            sx={{
-                              color: "#0f172a",
-                              fontWeight: 800,
-                              fontSize: "0.92rem",
-                              "&:hover": { color: "#2563eb" },
-                            }}
-                          >
-                            {e.customer?.name || "Unnamed Deal"}
-                          </Link>
-                          <ArrowForwardIosRoundedIcon sx={{ fontSize: 12, color: "#94a3b8", mt: 0.4 }} />
-                        </Box>
-
-                        {/* Route Destination */}
-                        <Box display="flex" alignItems="center" gap={1} mb={1}>
-                          <RouteRoundedIcon sx={{ fontSize: 15, color: "#94a3b8" }} />
-                          <Typography variant="body2" color="#475569" fontWeight={600} noWrap sx={{ fontSize: "0.8rem" }}>
-                            {[e.source, e.destination].filter(Boolean).join(" → ") || "Open Route"}
-                          </Typography>
-                        </Box>
-
-                        {/* Assigned Agent & Date Meta */}
-                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.75} pt={0.5}>
-                          <Box display="flex" alignItems="center" gap={0.75}>
-                            <Avatar
-                              sx={{
-                                width: 20,
-                                height: 20,
-                                fontSize: "0.65rem",
-                                fontWeight: 700,
-                                bgcolor: e.assignedTo ? "#eff6ff" : "#f1f5f9",
-                                color: e.assignedTo ? "#2563eb" : "#94a3b8",
-                              }}
-                            >
-                              {e.assignedTo?.name?.[0]?.toUpperCase() || <BadgeRoundedIcon sx={{ fontSize: 12 }} />}
-                            </Avatar>
-                            <Typography variant="caption" color="text.secondary" fontWeight={600} noWrap sx={{ maxWidth: 120 }}>
-                              {e.assignedTo?.name || "Unassigned"}
-                            </Typography>
-                          </Box>
-
-                          {e.createdAt && (
-                            <Box display="flex" alignItems="center" gap={0.5} sx={{ color: "#94a3b8" }}>
-                              <CalendarTodayRoundedIcon sx={{ fontSize: 12 }} />
-                              <Typography variant="caption" color="text.secondary" fontSize="0.7rem">
-                                {new Date(e.createdAt).toLocaleDateString("en-IN", {
-                                  day: "numeric",
-                                  month: "short",
-                                })}
-                              </Typography>
-                            </Box>
-                          )}
-                        </Box>
-
-                        {/* Quick Transition Selector */}
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <Select
-                            size="small"
-                            fullWidth
-                            disabled={isMoving}
-                            value={e.status}
-                            onChange={(ev) => moveStage(e.id, ev.target.value)}
-                            sx={{
-                              fontSize: "0.78rem",
-                              fontWeight: 700,
-                              borderRadius: 2,
-                              bgcolor: "#f8fafc",
-                              "& .MuiSelect-select": { py: 0.65, px: 1.25 },
-                            }}
-                          >
-                            {STAGES.map((s) => (
-                              <MenuItem key={s} value={s} sx={{ fontSize: "0.8rem", fontWeight: 600 }}>
-                                Move to {STAGE_CONFIG[s]?.label ?? s}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                          {isMoving && <CircularProgress size={16} sx={{ color: "#2563eb" }} />}
-                        </Box>
-                      </CardContent>
-                    </Card>
+                      <TableCell sx={{ py: 1.1 }}><Link component={RouterLink} to={`/app/enquiries/${e.id}`} underline="none" sx={{ color: "#0f172a", fontWeight: 800, fontSize: "0.84rem", "&:hover": { color: "#2563eb" } }}>{e.customer?.name || "Unnamed Lead"}</Link><Typography variant="caption" display="block" color="text.secondary">{e.customer?.phone || "No phone"}</Typography></TableCell>
+                      <TableCell sx={{ py: 1.1, maxWidth: 260 }}><Box display="flex" alignItems="center" gap={0.7}><RouteRoundedIcon sx={{ fontSize: 14, color: "#94a3b8" }} /><Typography variant="caption" color="#475569" fontWeight={600} noWrap>{[e.pickupLocation || e.source, e.destination].filter(Boolean).join(" → ") || "Open route"}</Typography></Box></TableCell>
+                      <TableCell sx={{ py: 1.1 }}><Box display="flex" alignItems="center" gap={0.7}><Avatar sx={{ width: 22, height: 22, fontSize: "0.65rem", bgcolor: "#eff6ff", color: "#2563eb" }}>{e.assignedTo?.name?.[0]?.toUpperCase() || <BadgeRoundedIcon sx={{ fontSize: 13 }} />}</Avatar><Typography variant="caption" fontWeight={600} noWrap>{e.assignedTo?.name || "Unassigned"}</Typography></Box></TableCell>
+                      <TableCell sx={{ py: 1.1 }}><Typography variant="caption" color="text.secondary">{e.createdAt ? new Date(e.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}</Typography></TableCell>
+                      <TableCell align="right" sx={{ py: 1.1 }}><Box display="flex" justifyContent="flex-end" alignItems="center" gap={0.75}><Select size="small" disabled={isMoving} value={e.status} onChange={(ev) => moveStage(e.id, ev.target.value)} sx={{ minWidth: 145, fontSize: "0.74rem", fontWeight: 700, borderRadius: 1.5, "& .MuiSelect-select": { py: 0.45, px: 1 } }}>{STAGES.map((s) => <MenuItem key={s} value={s} sx={{ fontSize: "0.78rem" }}>{STAGE_CONFIG[s]?.label ?? s}</MenuItem>)}</Select>{isMoving && <CircularProgress size={15} />}</Box></TableCell>
+                    </TableRow>
                   );
-                })}
-
-                {stageEnquiries.length === 0 && (
+                })}</TableBody>
+              </Table> : (
                   <Box
                     sx={{
-                      p: 3,
+                      p: 1.75,
                       border: "1.5px dashed #cbd5e1",
-                      borderRadius: 2.5,
+                      borderRadius: 1.5,
                       textAlign: "center",
-                      bgcolor: "rgba(255, 255, 255, 0.4)",
+                      bgcolor: "#fafcff",
                     }}
                   >
                     <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                      {search ? "No matches" : "No deals in this stage"}
+                      {search ? "No matching leads" : "No leads in this stage"}
                     </Typography>
                   </Box>
-                )}
-              </Box>
+              )}
             </Paper>
           );
         })}

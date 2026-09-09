@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Box, Typography, Paper, Avatar, Button, TextField, Alert, Grid, Divider, IconButton, CircularProgress,
+  Chip,
 } from "@mui/material";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import PhotoCameraRoundedIcon from "@mui/icons-material/PhotoCameraRounded";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded";
+import WorkspacePremiumRoundedIcon from "@mui/icons-material/WorkspacePremiumRounded";
 import { apiClient } from "../../api/client";
 
 interface MeProfile {
@@ -33,6 +35,15 @@ interface MeProfile {
     businessType: string | null;
     currency: string | null;
   } | null;
+  plan: {
+    id: string;
+    name: string;
+    priceInPaise: number;
+    entitlements: Record<string, boolean>;
+    maxUsers: number | null;
+    maxEnquiriesPerMonth: number | null;
+    maxBranches: number | null;
+  };
 }
 
 export function ProfilePage() {
@@ -57,6 +68,9 @@ export function ProfilePage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [plans, setPlans] = useState<MeProfile["plan"][]>([]);
+  const [requestedPlanId, setRequestedPlanId] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
 
   function loadMe() {
     setLoading(true);
@@ -75,7 +89,19 @@ export function ProfilePage() {
 
   useEffect(() => {
     loadMe();
+    apiClient.get("/client/plans").then(({ data }) => setPlans(data.data ?? [])).catch(() => setPlans([]));
   }, []);
+
+  async function requestPlan(planId: string) {
+    setPlanError(null);
+    setRequestedPlanId(planId);
+    try {
+      await apiClient.post("/payment-renewal/notify", { planId });
+    } catch (err: any) {
+      setPlanError(err.response?.data?.message ?? "Could not send the plan request");
+      setRequestedPlanId(null);
+    }
+  }
 
   async function handleSaveName() {
     setNameError(null);
@@ -212,6 +238,44 @@ export function ProfilePage() {
         <Typography variant="caption" color="text.secondary" display="block" mt={1}>
           JPG, PNG or WEBP. Max 2MB.
         </Typography>
+      </Paper>
+
+      <Paper
+        elevation={0}
+        sx={{ p: 4, mb: 3, borderRadius: 3, border: "1px solid #eef0f3", boxShadow: "0 2px 8px rgba(16,24,40,0.04)" }}
+      >
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={2} flexWrap="wrap" mb={2}>
+          <Box>
+            <Typography variant="h6" fontWeight={700}>CRM Subscription</Typography>
+            <Typography variant="body2" color="text.secondary">Your current plan and available upgrades.</Typography>
+          </Box>
+          <Chip icon={<WorkspacePremiumRoundedIcon />} label={`${me.plan.name} Plan`} color="primary" />
+        </Box>
+        <Box sx={{ p: 2, mb: 2, borderRadius: 2, bgcolor: "#eff6ff", border: "1px solid #bfdbfe" }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" gap={2} flexWrap="wrap">
+            <Box>
+              <Typography fontWeight={800}>{me.plan.name}</Typography>
+              <Typography variant="body2" color="text.secondary">₹{(me.plan.priceInPaise / 100).toLocaleString("en-IN")} / subscription period</Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary">{me.plan.maxUsers ?? "Unlimited"} users · {me.plan.maxEnquiriesPerMonth ?? "Unlimited"} leads/month</Typography>
+          </Box>
+        </Box>
+        {planError && <Alert severity="error" sx={{ mb: 2 }}>{planError}</Alert>}
+        <Grid container spacing={2}>
+          {plans.filter((plan) => plan.id !== me.plan.id).map((plan) => (
+            <Grid item xs={12} sm={6} md={4} key={plan.id}>
+              <Box sx={{ height: "100%", p: 2, border: "1px solid #e2e8f0", borderRadius: 2, display: "flex", flexDirection: "column", gap: 1.25 }}>
+                <Typography fontWeight={800}>{plan.name}</Typography>
+                <Typography variant="h6" fontWeight={900}>₹{(plan.priceInPaise / 100).toLocaleString("en-IN")}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>{plan.maxUsers ?? "Unlimited"} users · {plan.maxEnquiriesPerMonth ?? "Unlimited"} leads/month</Typography>
+                <Button size="small" variant="outlined" onClick={() => requestPlan(plan.id)} disabled={requestedPlanId !== null}>
+                  {requestedPlanId === plan.id ? "Request Sent" : "Request This Plan"}
+                </Button>
+              </Box>
+            </Grid>
+          ))}
+        </Grid>
+        {requestedPlanId && <Alert severity="success" sx={{ mt: 2 }}>Your plan request has been sent to the account team for approval.</Alert>}
       </Paper>
 
       <Paper

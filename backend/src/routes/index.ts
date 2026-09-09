@@ -100,6 +100,7 @@ apiRouter.get("/client/me", authenticate, scopeTenant(["ACTIVE", "EXPIRING_SOON"
         client: {
           select: {
             businessName: true, clientCode: true, ownerName: true, email: true, phone: true,
+            plan: { select: { id: true, name: true, priceInPaise: true, entitlements: true, maxUsers: true, maxEnquiriesPerMonth: true, maxBranches: true } },
             companyProfile: { select: { companyName: true, address: true, gstNumber: true, phone: true, email: true, businessType: true, currency: true } },
           },
         },
@@ -111,7 +112,21 @@ apiRouter.get("/client/me", authenticate, scopeTenant(["ACTIVE", "EXPIRING_SOON"
       role: user.role, branch: user.branch, businessName: user.client.businessName,
       clientCode: user.client.clientCode, ownerName: user.client.ownerName,
       phone: user.client.phone, companyEmail: user.client.email, companyProfile: user.client.companyProfile,
+      plan: user.client.plan,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+apiRouter.get("/client/plans", authenticate, scopeTenant(["ACTIVE", "EXPIRING_SOON", "GRACE", "LOCKED"]), async (_req, res, next) => {
+  try {
+    const plans = await prisma.plan.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, priceInPaise: true, entitlements: true, maxUsers: true, maxEnquiriesPerMonth: true, maxBranches: true },
+      orderBy: { priceInPaise: "asc" },
+    });
+    return ok(res, plans);
   } catch (err) {
     next(err);
   }
@@ -218,8 +233,15 @@ apiRouter.post("/payment-renewal/notify", authenticate, async (req, res, next) =
     if (req.auth?.role !== "CLIENT_USER" || !req.auth.clientId) {
       return ok(res, null);
     }
+    const planId = typeof req.body?.planId === "string" ? req.body.planId : undefined;
+    let message = req.body?.message as string | undefined;
+    if (planId) {
+      const plan = await prisma.plan.findFirst({ where: { id: planId, isActive: true }, select: { name: true } });
+      if (!plan) return fail(res, 400, "Selected plan is unavailable", "PLAN_NOT_AVAILABLE");
+      message = `Plan change requested: ${plan.name}${message ? ` - ${message}` : ""}`;
+    }
     const notice = await prisma.paymentNotice.create({
-      data: { clientId: req.auth.clientId, message: req.body?.message },
+      data: { clientId: req.auth.clientId, message },
     });
     return ok(res, notice, "Payment notice sent to Super Admin");
   } catch (err) {

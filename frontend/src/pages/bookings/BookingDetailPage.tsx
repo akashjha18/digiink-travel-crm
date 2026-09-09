@@ -45,6 +45,7 @@ export function BookingDetailPage() {
           {["CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((s) => <MenuItem key={s} value={s}>{s.replace("_", " ")}</MenuItem>)}
         </Select>
         <Button variant="outlined" onClick={() => window.print()}>Print Voucher</Button>
+        <Button variant="outlined" onClick={() => navigate(`/app/bookings/${id}/edit`)}>Edit Booking</Button>
         {booking.trip && <Button variant="outlined" onClick={() => navigate(`/app/trips/${booking.trip.id}`)}>Manage Trip</Button>}
       </Box>
 

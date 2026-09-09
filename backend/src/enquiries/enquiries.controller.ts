@@ -75,10 +75,14 @@ enquiriesRouter.get("/:id", requirePermission("enquiries", "view"), async (req, 
 // --- Create -------------------------------------------------------------------
 const createEnquirySchema = z.object({
   customerId: z.string().optional(),
-  newCustomer: z.object({ name: z.string().min(1), phone: z.string().min(1), email: z.string().optional() }).optional(),
+  newCustomer: z.object({ name: z.string().min(1), phone: z.string().min(1), email: z.string().email().optional().or(z.literal("")) }).optional(),
   source: z.string().optional(),
+  pickupLocation: z.string().optional(),
   destination: z.string().optional(),
   travelDate: z.coerce.date().optional(),
+  vehicleService: z.string().optional(),
+  notes: z.string().optional(),
+  followUpDate: z.coerce.date().optional(),
   assignTo: z.enum(["MANUAL", "ROUND_ROBIN", "NONE"]).default("NONE"),
   assignedToId: z.string().optional(),
   branchId: z.string().optional(),
@@ -125,8 +129,12 @@ enquiriesRouter.post("/", requirePermission("enquiries", "add"), async (req, res
         clientId: req.clientId!,
         customerId: customerId!,
         source: input.source,
+        pickupLocation: input.pickupLocation ?? input.source,
         destination: input.destination,
         travelDate: input.travelDate,
+        vehicleService: input.vehicleService,
+        notes: input.notes,
+        followUpDate: input.followUpDate,
         assignedToId,
         branchId: input.branchId ?? creator?.branchId ?? null,
       },
@@ -205,6 +213,102 @@ enquiriesRouter.patch("/:id/assign", requirePermission("enquiries", "edit"), asy
     });
     await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "REASSIGN_ENQUIRY", target: enquiry.id });
     return ok(res, enquiry, "Enquiry reassigned");
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Delete -------------------------------------------------------------------
+enquiriesRouter.delete("/:id", requirePermission("enquiries", "delete"), async (req, res, next) => {
+  try {
+    const existing = await prisma.enquiry.findFirst({
+      where: { id: req.params.id, clientId: req.clientId! },
+      include: { quotations: { select: { id: true } } },
+    });
+    if (!existing) return fail(res, 404, "Lead not found", "NOT_FOUND");
+    if (existing.quotations.length > 0) {
+      return fail(res, 409, "This lead has quotations and cannot be deleted. Delete its quotations first.", "LEAD_HAS_QUOTATIONS");
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.followUp.deleteMany({ where: { enquiryId: existing.id, clientId: req.clientId! } });
+      await tx.enquiry.delete({ where: { id: existing.id } });
+    });
+    await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "DELETE_ENQUIRY", target: existing.id });
+    return ok(res, { id: existing.id }, "Lead deleted");
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Convert lead directly to booking ----------------------------------------
+const convertToBookingSchema = z.object({
+  travelStart: z.coerce.date().optional(),
+  travelEnd: z.coerce.date().optional(),
+  pickup: z.string().min(1),
+  drop: z.string().min(1),
+  vehicleType: z.string().optional(),
+  distance: z.string().optional(),
+  duration: z.string().optional(),
+  driverId: z.string().optional(),
+  vehicleId: z.string().optional(),
+  fareInPaise: z.number().int().nonnegative(),
+  bookingStatus: z.enum(["CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).default("CONFIRMED"),
+  paymentStatus: z.enum(["UNPAID", "PARTIAL", "PAID"]).default("UNPAID"),
+  notes: z.string().optional(),
+});
+
+enquiriesRouter.post("/:id/convert-to-booking", requireEntitlement("bookings"), requirePermission("bookings", "add"), async (req, res, next) => {
+  try {
+    const input = convertToBookingSchema.parse(req.body);
+    const enquiry = await prisma.enquiry.findFirst({
+      where: { id: req.params.id, clientId: req.clientId! },
+      include: { customer: true, branch: true },
+    });
+    if (!enquiry) return fail(res, 404, "Lead not found", "NOT_FOUND");
+
+    if (input.driverId) {
+      const driver = await prisma.driver.findFirst({ where: { id: input.driverId, clientId: req.clientId! } });
+      if (!driver) return fail(res, 400, "Driver not found", "DRIVER_NOT_FOUND");
+    }
+    if (input.vehicleId) {
+      const vehicle = await prisma.vehicle.findFirst({ where: { id: input.vehicleId, clientId: req.clientId! } });
+      if (!vehicle) return fail(res, 400, "Vehicle not found", "VEHICLE_NOT_FOUND");
+    }
+
+    const booking = await prisma.$transaction(async (tx) => {
+      const version = (await tx.quotation.count({ where: { enquiryId: enquiry.id, clientId: req.clientId! } })) + 1;
+      const quotation = await tx.quotation.create({
+        data: {
+          clientId: req.clientId!, enquiryId: enquiry.id, customerId: enquiry.customerId,
+          version, itineraryJson: [{ pickup: input.pickup, drop: input.drop, vehicleType: input.vehicleType, distance: input.distance, duration: input.duration }],
+          totalInPaise: input.fareInPaise, status: "ACCEPTED", termsAndConditions: input.notes,
+        },
+      });
+      const created = await tx.booking.create({
+        data: {
+          clientId: req.clientId!, quotationId: quotation.id, customerId: enquiry.customerId,
+          travelStart: input.travelStart, travelEnd: input.travelEnd, amountInPaise: input.fareInPaise,
+          status: input.bookingStatus, branchId: enquiry.branchId, driverId: input.driverId, vehicleId: input.vehicleId,
+        },
+      });
+      await tx.trip.create({
+        data: {
+          clientId: req.clientId!, bookingId: created.id, startDate: input.travelStart, endDate: input.travelEnd,
+          pickup: input.pickup, drop: input.drop, itineraryNotes: [input.vehicleType, input.distance && `Distance: ${input.distance}`, input.duration && `Duration: ${input.duration}`, input.notes].filter(Boolean).join("\n") || null,
+          driverId: input.driverId, vehicleId: input.vehicleId,
+        },
+      });
+      if (input.paymentStatus === "PAID" && input.fareInPaise > 0) {
+        await tx.payment.create({
+          data: { clientId: req.clientId!, bookingId: created.id, customerId: enquiry.customerId, amountInPaise: input.fareInPaise, mode: "MANUAL", paymentDate: new Date(), recordedById: req.auth!.sub, notes: "Recorded during lead conversion" },
+        });
+      }
+      await tx.enquiry.update({ where: { id: enquiry.id }, data: { status: "WON" } });
+      return created;
+    });
+    await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "CREATE_BOOKING", target: booking.id, metadata: { enquiryId: enquiry.id } });
+    return ok(res, booking, "Lead converted to booking");
   } catch (err) {
     next(err);
   }

@@ -331,8 +331,12 @@ model Enquiry {
   customerId   String
   customer     Customer      @relation(fields: [customerId], references: [id])
   source       String?
+  pickupLocation String?
   destination  String?
   travelDate   DateTime?
+  vehicleService String?
+  notes        String?       @db.Text
+  followUpDate DateTime?
   status       EnquiryStatus @default(NEW)
   assignedToId String?
   assignedTo   User?         @relation("AssignedStaff", fields: [assignedToId], references: [id])
@@ -493,6 +497,18 @@ model Vehicle {
   clientId           String
   client             Client    @relation(fields: [clientId], references: [id])
   vehicleType        String
+  vehicleName        String?
+  slug               String?
+  pricePerKm         Float       @default(0)
+  sortOrder          Int         @default(0)
+  seats              Int?
+  bags               Int?
+  acType             String?
+  pricingType        String?
+  description        String?     @db.Text
+  vehicleImage       String?     @db.LongText
+  catalogStatus      String      @default("INACTIVE")
+  featured           Boolean     @default(false)
   registrationNumber String
   capacity           Int
   isAvailable        Boolean   @default(true)

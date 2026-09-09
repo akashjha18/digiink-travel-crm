@@ -15,13 +15,16 @@ import {
   CircularProgress,
   IconButton,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
 import EmailRoundedIcon from "@mui/icons-material/EmailRounded";
 import RouteRoundedIcon from "@mui/icons-material/RouteRounded";
-import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import PhoneCallbackRoundedIcon from "@mui/icons-material/PhoneCallbackRounded";
 import NoteAltRoundedIcon from "@mui/icons-material/NoteAltRounded";
@@ -30,6 +33,8 @@ import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
 import { apiClient } from "../../api/client";
 
 const STAGES = ["NEW", "CONTACTED", "QUOTED", "NEGOTIATION", "WON", "LOST"];
@@ -62,6 +67,15 @@ export function EnquiryDetailPage() {
   const [submittingNote, setSubmittingNote] = useState(false);
   const [updatingStage, setUpdatingStage] = useState(false);
   const [updatingAssignee, setUpdatingAssignee] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [bookingForm, setBookingForm] = useState({
+    pickup: "", drop: "", travelStart: "", travelEnd: "", vehicleType: "", distance: "", duration: "",
+    driverId: "", vehicleId: "", fare: "", bookingStatus: "CONFIRMED", paymentStatus: "UNPAID", notes: "",
+  });
 
   function load() {
     apiClient.get(`/enquiries/${id}`).then(({ data }) => setEnquiry(data.data));
@@ -71,7 +85,41 @@ export function EnquiryDetailPage() {
 
   useEffect(() => {
     apiClient.get("/users").then(({ data }) => setStaff(data.data ?? []));
+    apiClient.get("/drivers").then(({ data }) => setDrivers(data.data ?? [])).catch(() => setDrivers([]));
+    apiClient.get("/vehicles").then(({ data }) => setVehicles(data.data ?? [])).catch(() => setVehicles([]));
   }, []);
+
+  function openBookingForm() {
+    setBookingForm((current) => ({
+      ...current,
+      pickup: enquiry?.pickupLocation ?? enquiry?.source ?? "",
+      drop: enquiry?.destination ?? "",
+      travelStart: enquiry?.travelDate ? new Date(enquiry.travelDate).toISOString().slice(0, 16) : "",
+      vehicleType: enquiry?.vehicleService ?? "",
+      notes: enquiry?.notes ?? "",
+    }));
+    setBookingOpen(true);
+  }
+
+  async function convertToBooking() {
+    if (!bookingForm.pickup.trim() || !bookingForm.drop.trim() || !bookingForm.fare) return;
+    try {
+      setBookingLoading(true);
+      const { data } = await apiClient.post(`/enquiries/${id}/convert-to-booking`, {
+        ...bookingForm,
+        fareInPaise: Math.round(Number(bookingForm.fare) * 100),
+        travelStart: bookingForm.travelStart || undefined,
+        travelEnd: bookingForm.travelEnd || undefined,
+        driverId: bookingForm.driverId || undefined,
+        vehicleId: bookingForm.vehicleId || undefined,
+      });
+      navigate(`/app/bookings/${data.data.id}`);
+    } catch (err: any) {
+      window.alert(err.response?.data?.message ?? "Could not convert this lead to a booking.");
+    } finally {
+      setBookingLoading(false);
+    }
+  }
 
   async function updateStatus(status: string) {
     try {
@@ -102,6 +150,19 @@ export function EnquiryDetailPage() {
       load();
     } finally {
       setSubmittingNote(false);
+    }
+  }
+
+  async function deleteLead() {
+    if (!window.confirm("Delete this lead permanently? This action cannot be undone.")) return;
+    try {
+      setDeleting(true);
+      await apiClient.delete(`/enquiries/${id}`);
+      navigate("/app/enquiries", { replace: true });
+    } catch (err: any) {
+      window.alert(err.response?.data?.message ?? "Could not delete this lead.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -233,24 +294,35 @@ export function EnquiryDetailPage() {
             </Box>
           </Box>
 
-          {/* New Quotation Quick Action */}
-          <Button
-            variant="contained"
-            startIcon={<AddRoundedIcon />}
-            onClick={() => navigate(`/app/quotations/new?enquiryId=${id}`)}
-            sx={{
-              bgcolor: "#2563eb",
-              borderRadius: 2.5,
-              px: 2.5,
-              py: 1,
-              textTransform: "none",
-              fontWeight: 700,
-              boxShadow: "0 4px 14px rgba(37, 99, 235, 0.25)",
-              "&:hover": { bgcolor: "#1d4ed8" },
-            }}
-          >
-            Create Quotation
-          </Button>
+          <Box display="flex" gap={1.25} flexWrap="wrap">
+            <Button
+              variant="contained"
+              startIcon={<EventAvailableRoundedIcon />}
+              onClick={openBookingForm}
+              sx={{
+                bgcolor: "#2563eb",
+                borderRadius: 2.5,
+                px: 2.5,
+                py: 1,
+                textTransform: "none",
+                fontWeight: 700,
+                boxShadow: "0 4px 14px rgba(37, 99, 235, 0.25)",
+                "&:hover": { bgcolor: "#1d4ed8" },
+              }}
+            >
+              Convert to Booking
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={deleting ? <CircularProgress size={16} /> : <DeleteOutlineRoundedIcon />}
+              onClick={deleteLead}
+              disabled={deleting}
+              sx={{ borderRadius: 2.5, textTransform: "none", fontWeight: 700 }}
+            >
+              {deleting ? "Deleting..." : "Delete Lead"}
+            </Button>
+          </Box>
         </Box>
       </Paper>
 
@@ -610,6 +682,39 @@ export function EnquiryDetailPage() {
           </Paper>
         </Grid>
       </Grid>
+
+      <Dialog open={bookingOpen} onClose={() => !bookingLoading && setBookingOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle fontWeight={900}>Convert Lead to Booking</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "10px !important" }}>
+          <Typography variant="caption" color="text.secondary">Customer: {enquiry.customer?.name} · {enquiry.customer?.phone}</Typography>
+          <Box display="flex" gap={2}>
+            <TextField fullWidth required label="Pickup Location" value={bookingForm.pickup} onChange={(e) => setBookingForm({ ...bookingForm, pickup: e.target.value })} />
+            <TextField fullWidth required label="Drop Location" value={bookingForm.drop} onChange={(e) => setBookingForm({ ...bookingForm, drop: e.target.value })} />
+          </Box>
+          <Box display="flex" gap={2}>
+            <TextField fullWidth type="datetime-local" label="Pickup Date & Time" value={bookingForm.travelStart} onChange={(e) => setBookingForm({ ...bookingForm, travelStart: e.target.value })} InputLabelProps={{ shrink: true }} />
+            <TextField fullWidth type="datetime-local" label="Return Date & Time" value={bookingForm.travelEnd} onChange={(e) => setBookingForm({ ...bookingForm, travelEnd: e.target.value })} InputLabelProps={{ shrink: true }} />
+          </Box>
+          <Box display="flex" gap={2}>
+            <TextField fullWidth label="Vehicle Type" placeholder="e.g. One Way Trip / Tempo Traveller" value={bookingForm.vehicleType} onChange={(e) => setBookingForm({ ...bookingForm, vehicleType: e.target.value })} />
+            <TextField fullWidth label="Fare (₹)" type="number" required value={bookingForm.fare} onChange={(e) => setBookingForm({ ...bookingForm, fare: e.target.value })} />
+          </Box>
+          <Box display="flex" gap={2}>
+            <TextField fullWidth label="Distance (km)" value={bookingForm.distance} onChange={(e) => setBookingForm({ ...bookingForm, distance: e.target.value })} />
+            <TextField fullWidth label="Duration" placeholder="e.g. 5.5 Hours" value={bookingForm.duration} onChange={(e) => setBookingForm({ ...bookingForm, duration: e.target.value })} />
+          </Box>
+          <Box display="flex" gap={2}>
+            <TextField select fullWidth label="Assign Driver" value={bookingForm.driverId} onChange={(e) => setBookingForm({ ...bookingForm, driverId: e.target.value })}><MenuItem value="">No driver</MenuItem>{drivers.map((d) => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}</TextField>
+            <TextField select fullWidth label="Assign Vehicle" value={bookingForm.vehicleId} onChange={(e) => setBookingForm({ ...bookingForm, vehicleId: e.target.value })}><MenuItem value="">No vehicle</MenuItem>{vehicles.map((v) => <MenuItem key={v.id} value={v.id}>{v.registrationNumber} ({v.vehicleType})</MenuItem>)}</TextField>
+          </Box>
+          <Box display="flex" gap={2}>
+            <TextField select fullWidth label="Booking Status" value={bookingForm.bookingStatus} onChange={(e) => setBookingForm({ ...bookingForm, bookingStatus: e.target.value })}><MenuItem value="CONFIRMED">Confirmed</MenuItem><MenuItem value="IN_PROGRESS">In Progress</MenuItem><MenuItem value="COMPLETED">Completed</MenuItem></TextField>
+            <TextField select fullWidth label="Payment Status" value={bookingForm.paymentStatus} onChange={(e) => setBookingForm({ ...bookingForm, paymentStatus: e.target.value })}><MenuItem value="UNPAID">Unpaid</MenuItem><MenuItem value="PARTIAL">Partial</MenuItem><MenuItem value="PAID">Paid</MenuItem></TextField>
+          </Box>
+          <TextField fullWidth multiline minRows={3} label="Notes" value={bookingForm.notes} onChange={(e) => setBookingForm({ ...bookingForm, notes: e.target.value })} />
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}><Button onClick={() => setBookingOpen(false)} disabled={bookingLoading}>Cancel</Button><Button variant="contained" onClick={convertToBooking} disabled={bookingLoading || !bookingForm.pickup.trim() || !bookingForm.drop.trim() || !bookingForm.fare} startIcon={bookingLoading ? <CircularProgress size={16} /> : <EventAvailableRoundedIcon />}>Confirm Booking</Button></DialogActions>
+      </Dialog>
     </Box>
   );
 }

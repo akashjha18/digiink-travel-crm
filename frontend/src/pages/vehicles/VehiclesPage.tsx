@@ -25,6 +25,7 @@ import {
   CircularProgress,
   Grid,
 } from "@mui/material";
+import { useNavigate } from "react-router-dom";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
@@ -113,6 +114,7 @@ function expiryChip(date: string | null) {
 }
 
 export function VehiclesPage() {
+  const navigate = useNavigate();
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any[]>([]);
@@ -122,9 +124,22 @@ export function VehiclesPage() {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [imageName, setImageName] = useState("");
 
   const [form, setForm] = useState({
     vehicleType: "",
+    vehicleName: "",
+    slug: "",
+    pricePerKm: 0,
+    sortOrder: 0,
+    seats: 4,
+    bags: 0,
+    acType: "",
+    pricingType: "",
+    description: "",
+    vehicleImage: "",
+    catalogStatus: "INACTIVE",
+    featured: false,
     registrationNumber: "",
     capacity: 4,
     rcExpiry: "",
@@ -162,6 +177,10 @@ export function VehiclesPage() {
       await apiClient.post("/vehicles", {
         ...form,
         capacity: Number(form.capacity),
+        pricePerKm: Number(form.pricePerKm),
+        sortOrder: Number(form.sortOrder),
+        seats: Number(form.seats),
+        bags: Number(form.bags),
         assignedDriverId: form.assignedDriverId || undefined,
         rcExpiry: form.rcExpiry || undefined,
         insuranceExpiry: form.insuranceExpiry || undefined,
@@ -176,7 +195,20 @@ export function VehiclesPage() {
         insuranceExpiry: "",
         permitExpiry: "",
         assignedDriverId: "",
+        vehicleName: "",
+        slug: "",
+        pricePerKm: 0,
+        sortOrder: 0,
+        seats: 4,
+        bags: 0,
+        acType: "",
+        pricingType: "",
+        description: "",
+        vehicleImage: "",
+        catalogStatus: "INACTIVE",
+        featured: false,
       });
+      setImageName("");
       load();
     } finally {
       setCreating(false);
@@ -361,7 +393,7 @@ export function VehiclesPage() {
                 PERMIT
               </TableCell>
               <TableCell align="right" sx={{ fontWeight: 800, color: "#64748b", py: 2.2, px: 3, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
-                ASSIGNED DRIVER
+                ACTIONS
               </TableCell>
             </TableRow>
           </TableHead>
@@ -381,6 +413,7 @@ export function VehiclesPage() {
                 <TableCell sx={{ py: 2, px: 3 }}>
                   <Box display="flex" alignItems="center" gap={1.75}>
                     <Avatar
+                      src={v.vehicleImage || undefined}
                       sx={{
                         width: 38,
                         height: 38,
@@ -445,6 +478,7 @@ export function VehiclesPage() {
                     >
                       {v.assignedDriver?.name ?? "Unassigned"}
                     </Typography>
+                    <Button size="small" onClick={() => navigate(`/app/vehicles/${v.id}`)} sx={{ textTransform: "none", ml: 1 }}>View</Button>
                   </Box>
                 </TableCell>
               </TableRow>
@@ -509,6 +543,30 @@ export function VehiclesPage() {
 
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: "10px !important" }}>
           <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TextField size="small" label="Vehicle Name" placeholder="e.g. Toyota Etios" value={form.vehicleName} onChange={(e) => setForm({ ...form, vehicleName: e.target.value, vehicleType: e.target.value })} required fullWidth />
+            </Grid>
+            <Grid item xs={12} sm={7}>
+              <TextField size="small" label="Slug" placeholder="toyota-etios" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/\s+/g, "-") })} required fullWidth />
+            </Grid>
+            <Grid item xs={12} sm={5}>
+              <TextField size="small" label="Price Per KM" type="number" value={form.pricePerKm} onChange={(e) => setForm({ ...form, pricePerKm: Number(e.target.value) })} fullWidth />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField size="small" label="Seats" type="number" value={form.seats} onChange={(e) => setForm({ ...form, seats: Number(e.target.value), capacity: Number(e.target.value) })} fullWidth />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField size="small" label="Bags" type="number" value={form.bags} onChange={(e) => setForm({ ...form, bags: Number(e.target.value) })} fullWidth />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField select size="small" label="AC Type" value={form.acType} onChange={(e) => setForm({ ...form, acType: e.target.value })} fullWidth><MenuItem value=""><em>Select AC Type</em></MenuItem><MenuItem value="AC">AC</MenuItem><MenuItem value="NON_AC">Non AC</MenuItem></TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField select size="small" label="Pricing Type" value={form.pricingType} onChange={(e) => setForm({ ...form, pricingType: e.target.value })} fullWidth><MenuItem value=""><em>Select Pricing Type</em></MenuItem><MenuItem value="PER_KM">Per KM</MenuItem><MenuItem value="PER_DAY">Per Day</MenuItem><MenuItem value="FIXED">Fixed</MenuItem></TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField size="small" label="Sort Order" type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: Number(e.target.value) })} fullWidth />
+            </Grid>
             <Grid item xs={12} sm={7}>
               <TextField
                 size="small"
@@ -532,6 +590,27 @@ export function VehiclesPage() {
                 fullWidth
                 sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
               />
+            </Grid>
+          </Grid>
+
+          <TextField multiline minRows={3} size="small" label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} fullWidth />
+          <Button component="label" variant="outlined" sx={{ justifyContent: "flex-start", textTransform: "none" }}>
+            {imageName || "Choose Vehicle Image"}
+            <input hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setImageName(file.name);
+              const reader = new FileReader();
+              reader.onload = () => setForm((current) => ({ ...current, vehicleImage: String(reader.result ?? "") }));
+              reader.readAsDataURL(file);
+            }} />
+          </Button>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField select size="small" label="Status" value={form.catalogStatus} onChange={(e) => setForm({ ...form, catalogStatus: e.target.value })} fullWidth><MenuItem value="INACTIVE">Inactive</MenuItem><MenuItem value="ACTIVE">Active</MenuItem></TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField select size="small" label="Featured" value={form.featured ? "YES" : "NO"} onChange={(e) => setForm({ ...form, featured: e.target.value === "YES" })} fullWidth><MenuItem value="NO">No</MenuItem><MenuItem value="YES">Yes</MenuItem></TextField>
             </Grid>
           </Grid>
 

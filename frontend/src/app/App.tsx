@@ -25,6 +25,7 @@ import { QuotationBuilderPage } from "../pages/quotations/QuotationBuilderPage";
 import { QuotationDetailPage } from "../pages/quotations/QuotationDetailPage";
 import { BookingsListPage } from "../pages/bookings/BookingsListPage";
 import { BookingDetailPage } from "../pages/bookings/BookingDetailPage";
+import { BookingEditPage } from "../pages/bookings/BookingEditPage";
 import { ReceivablesPage } from "../pages/receivables/ReceivablesPage";
 import { InvoicesListPage } from "../pages/invoices/InvoicesListPage";
 import { InvoiceDetailPage } from "../pages/invoices/InvoiceDetailPage";
@@ -35,6 +36,7 @@ import { WhatsAppPage } from "../pages/whatsapp/WhatsAppPage";
 import { CustomFieldsPage } from "../pages/custom-fields/CustomFieldsPage";
 import { DriversPage } from "../pages/drivers/DriversPage";
 import { VehiclesPage } from "../pages/vehicles/VehiclesPage";
+import { VehicleDetailPage } from "../pages/vehicles/VehicleDetailPage";
 import { TripsListPage } from "../pages/trips/TripsListPage";
 import { TripDetailPage } from "../pages/trips/TripDetailPage";
 import { ClientLayout } from "../layouts/ClientLayout";
@@ -84,6 +86,7 @@ export function App() {
                   <Route path="/app/quotations/:id/new-version" element={<QuotationBuilderPage />} />
                   <Route path="/app/bookings" element={<BookingsListPage />} />
                   <Route path="/app/bookings/:id" element={<BookingDetailPage />} />
+                  <Route path="/app/bookings/:id/edit" element={<BookingEditPage />} />
                   <Route path="/app/receivables" element={<ReceivablesPage />} />
                   <Route path="/app/invoices" element={<InvoicesListPage />} />
                   <Route path="/app/invoices/:id" element={<InvoiceDetailPage />} />
@@ -96,6 +99,7 @@ export function App() {
                   <Route path="/app/trips/:id" element={<TripDetailPage />} />
                   <Route path="/app/drivers" element={<DriversPage />} />
                   <Route path="/app/vehicles" element={<VehiclesPage />} />
+                  <Route path="/app/vehicles/:id" element={<VehicleDetailPage />} />
                 </Route>
               </Route>
 

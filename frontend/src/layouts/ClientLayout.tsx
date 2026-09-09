@@ -48,7 +48,7 @@ const NAV_GROUPS = [
   {
     title: "SALES & CRM",
     items: [
-      { to: "/app/enquiries", label: "Enquiries", feature: "enquiry_crm", icon: ContactPhoneRoundedIcon },
+      { to: "/app/enquiries", label: "Leads", feature: "enquiry_crm", icon: ContactPhoneRoundedIcon },
       { to: "/app/pipeline", label: "Pipeline", feature: "enquiry_crm", icon: TimelineRoundedIcon },
       { to: "/app/customers", label: "Customers", feature: "enquiry_crm", icon: PeopleAltRoundedIcon },
       { to: "/app/quotations", label: "Quotations", feature: "quotation", icon: RequestQuoteRoundedIcon },

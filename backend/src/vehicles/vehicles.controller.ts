@@ -69,6 +69,18 @@ vehiclesRouter.get("/:id", requirePermission("vehicles", "view"), async (req, re
 
 const vehicleSchema = z.object({
   vehicleType: z.string().min(1),
+  vehicleName: z.string().optional(),
+  slug: z.string().optional(),
+  pricePerKm: z.number().nonnegative().optional(),
+  sortOrder: z.number().int().nonnegative().optional(),
+  seats: z.number().int().positive().optional(),
+  bags: z.number().int().nonnegative().optional(),
+  acType: z.string().optional(),
+  pricingType: z.string().optional(),
+  description: z.string().optional(),
+  vehicleImage: z.string().optional(),
+  catalogStatus: z.enum(["ACTIVE", "INACTIVE"]).optional(),
+  featured: z.boolean().optional(),
   registrationNumber: z.string().min(1),
   capacity: z.number().int().positive(),
   rcExpiry: z.coerce.date().optional(),

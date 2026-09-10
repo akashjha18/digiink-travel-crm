@@ -14,6 +14,15 @@ import logo from "../../assets/digiink-logo.jpeg";
 
 type Audience = "client" | "admin";
 
+function getClientLanding(permissions: Record<string, { view?: boolean }> | undefined) {
+  if (permissions?.dashboard?.view) return "/app/dashboard";
+  if (permissions?.enquiries?.view) return "/app/enquiries";
+  if (permissions?.bookings?.view) return "/app/bookings";
+  if (permissions?.customers?.view) return "/app/customers";
+  if (permissions?.reports?.view) return "/app/reports";
+  return "/app/profile";
+}
+
 const COPY: Record<Audience, {
   heading: string; subheading: string; emailPlaceholder: string;
   accentColor: string; accentHover: string; wrongRoleMessage: string; switchHref: string; switchLabel: string;
@@ -85,8 +94,8 @@ export function LoginForm({ audience }: { audience: Audience }) {
       // directly. If OTP gets re-enabled later, data.data.otpRequired
       // will be true instead and this branch needs to route to
       // /verify-otp with data.data.otpToken, same as before.
-      const { accessToken, refreshToken, subscriptionStatus, mustChangePassword, onboardingCompleted } = data.data;
-      setAuth({ accessToken, refreshToken, role, subscriptionStatus, mustChangePassword });
+      const { accessToken, refreshToken, subscriptionStatus, mustChangePassword, onboardingCompleted, permissions, isClientAdmin } = data.data;
+      setAuth({ accessToken, refreshToken, role, subscriptionStatus, mustChangePassword, permissions, isClientAdmin });
 
       if (subscriptionStatus === "LOCKED") {
         navigate("/payment-renewal");
@@ -95,7 +104,7 @@ export function LoginForm({ audience }: { audience: Audience }) {
       } else if (!onboardingCompleted) {
         navigate("/onboarding");
       } else {
-        navigate("/app/dashboard");
+        navigate(getClientLanding(permissions));
       }
     } catch (err: any) {
       setError(err.response?.data?.message ?? "Login failed");

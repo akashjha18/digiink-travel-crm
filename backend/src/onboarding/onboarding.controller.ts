@@ -5,8 +5,26 @@ import { ok, fail } from "../common/response";
 import { authenticate } from "../guards/authenticate";
 import { scopeTenant } from "../guards/tenant-scope.guard";
 import { logTenantAction } from "../audit/audit.service";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 export const onboardingRouter = Router();
+
+const logoDirectory = path.resolve(__dirname, "../../uploads/company-logos");
+fs.mkdirSync(logoDirectory, { recursive: true });
+const logoUpload = multer({
+  storage: multer.diskStorage({
+    destination: logoDirectory,
+    filename: (req, file, callback) => {
+      callback(null, `${req.auth?.clientId}-${Date.now()}${path.extname(file.originalname).toLowerCase()}`);
+    },
+  }),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    callback(null, ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype));
+  },
+});
 
 // Onboarding runs even while LOCKED/GRACE isn't meaningful to gate on —
 // a client mid-onboarding hasn't necessarily hit any billing state yet —
@@ -53,6 +71,22 @@ onboardingRouter.post("/company-profile", authenticate, scopeTenant(ALLOWED), as
     });
     await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "UPDATE_COMPANY_PROFILE" });
     return ok(res, profile, "Company profile saved");
+  } catch (err) {
+    next(err);
+  }
+});
+
+onboardingRouter.post("/company-logo", authenticate, scopeTenant(ALLOWED), logoUpload.single("logo"), async (req, res, next) => {
+  try {
+    if (!req.file) return fail(res, 400, "Please upload a JPG, PNG or WEBP logo", "INVALID_LOGO");
+    const logoUrl = `/uploads/company-logos/${req.file.filename}`;
+    const profile = await prisma.companyProfile.upsert({
+      where: { clientId: req.clientId! },
+      update: { logoUrl },
+      create: { clientId: req.clientId!, logoUrl },
+    });
+    await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "UPDATE_COMPANY_LOGO" });
+    return ok(res, { logoUrl, profile }, "Company logo uploaded");
   } catch (err) {
     next(err);
   }

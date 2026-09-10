@@ -11,6 +11,9 @@ export function ClientDetailPage() {
   const [client, setClient] = useState<any>(null);
   const [usage, setUsage] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [planId, setPlanId] = useState("");
+  const [savingPlan, setSavingPlan] = useState(false);
   const [payDialog, setPayDialog] = useState(false);
   const [payForm, setPayForm] = useState({
     amountInPaise: 0, date: new Date().toISOString().slice(0, 10), mode: "UPI",
@@ -22,6 +25,7 @@ export function ClientDetailPage() {
     apiClient.get(`/super-admin/clients/${id}`).then(({ data }) => setClient(data.data));
     apiClient.get(`/super-admin/clients/${id}/usage`).then(({ data }) => setUsage(data.data)).catch(() => {});
     apiClient.get(`/super-admin/clients/${id}/users`).then(({ data }) => setUsers(data.data)).catch(() => {});
+    apiClient.get("/super-admin/plans").then(({ data }) => setPlans(data.data ?? [])).catch(() => {});
   }
   useEffect(load, [id]);
 
@@ -39,6 +43,18 @@ export function ClientDetailPage() {
   async function forceReset(userId: string) {
     const { data } = await apiClient.post(`/super-admin/clients/${id}/users/${userId}/force-password-reset`);
     setResetResult({ userId, password: String(data.data.temporaryPassword ?? "") });
+  }
+
+  async function changePlan() {
+    if (!planId || planId === client.planId) return;
+    try {
+      setSavingPlan(true);
+      await apiClient.patch(`/super-admin/clients/${id}/plan`, { planId });
+      setPlanId("");
+      load();
+    } finally {
+      setSavingPlan(false);
+    }
   }
 
   if (!client) return <Box p={4}>Loading…</Box>;
@@ -79,6 +95,13 @@ export function ClientDetailPage() {
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>Subscription</Typography>
+            <Typography gutterBottom>Current plan: <b>{client.plan?.name}</b></Typography>
+            <Box display="flex" gap={1} alignItems="center" mb={2}>
+              <TextField select size="small" label="Change Plan" value={planId || client.planId} onChange={(e) => setPlanId(e.target.value)} sx={{ minWidth: 220 }}>
+                {plans.map((plan) => <MenuItem key={plan.id} value={plan.id}>{plan.name} · ₹{(plan.priceInPaise / 100).toLocaleString("en-IN")}</MenuItem>)}
+              </TextField>
+              <Button variant="outlined" onClick={changePlan} disabled={savingPlan || !planId || planId === client.planId}>{savingPlan ? "Saving..." : "Update Plan"}</Button>
+            </Box>
             <Typography>Start: {new Date(client.subscriptionStart).toLocaleDateString()}</Typography>
             <Typography>Expiry: {new Date(client.subscriptionExpiry).toLocaleDateString()}</Typography>
             {client.graceEndsAt && <Typography>Grace ends: {new Date(client.graceEndsAt).toLocaleDateString()}</Typography>}

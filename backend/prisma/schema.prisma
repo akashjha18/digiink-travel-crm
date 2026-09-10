@@ -100,6 +100,8 @@ model Client {
   whatsAppMessages    WhatsAppMessage[]
   customFieldDefinitions CustomFieldDefinition[]
   customFieldValues      CustomFieldValue[]
+  itineraries            Itinerary[]
+  tourTemplates          TourTemplate[]
 
   @@index([subscriptionStatus])
   @@map("clients")
@@ -118,6 +120,11 @@ model CompanyProfile {
   email        String?
   businessType String?
   currency     String?  @default("INR")
+  primaryColor String?  @default("#2563eb") @map("primary_color")
+  secondaryColor String? @default("#0f172a") @map("secondary_color")
+  whatsappNumber String? @map("whatsapp_number")
+  websiteUrl   String?  @map("website_url")
+  itineraryFooterNotes String? @db.Text @map("itinerary_footer_notes")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -277,6 +284,7 @@ model User {
   branch             Branch?   @relation(fields: [branchId], references: [id])
   isClientAdmin      Boolean   @default(false)
   isActive           Boolean   @default(true)
+  deletedAt          DateTime?
   mustChangePassword Boolean   @default(true)
   lastLoginAt        DateTime?
   createdAt          DateTime  @default(now())
@@ -310,6 +318,7 @@ model Customer {
   payments   Payment[]
   invoices   Invoice[]
   documents  Document[]
+  itineraries Itinerary[]
 
   @@index([clientId])
   @@map("customers")
@@ -347,6 +356,7 @@ model Enquiry {
 
   followUps  FollowUp[]
   quotations Quotation[]
+  itineraries Itinerary[]
 
   @@index([clientId])
   @@index([clientId, status])
@@ -729,3 +739,115 @@ model CustomFieldValue {
   @@index([clientId])
   @@map("custom_field_values")
 }
+
+// =============================================================================
+// PHASE 1: DAY-WISE ITINERARY BUILDER & MULTI-TIER PRICING
+// =============================================================================
+
+enum ItineraryStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+model TourTemplate {
+  id                String   @id @default(cuid())
+  clientId          String   @map("client_id")
+  title             String
+  destination       String
+  totalDays         Int      @default(1) @map("total_days")
+  totalNights       Int      @default(0) @map("total_nights")
+  coverImageUrl     String?  @map("cover_image_url")
+  defaultInclusions Json?    @map("default_inclusions")
+  defaultExclusions Json?    @map("default_exclusions")
+  defaultTerms      String?  @db.Text @map("default_terms")
+  days              Json     // Array of { dayNumber, title, stayCity, description, meals, hotelName, roomCategory, hotelRating, transferDetails, photos }
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("tour_templates")
+}
+
+model Itinerary {
+  id                 String          @id @default(cuid())
+  clientId           String          @map("client_id")
+  enquiryId          String?         @map("enquiry_id")
+  customerId         String?         @map("customer_id")
+  shareSlug          String          @unique @map("share_slug")
+  passcode           String?
+  status             ItineraryStatus @default(DRAFT)
+
+  tripTitle          String          @map("trip_title")
+  destination        String
+  startDate          DateTime?       @map("start_date")
+  endDate            DateTime?       @map("end_date")
+  totalDays          Int             @default(1) @map("total_days")
+  totalNights        Int             @default(0) @map("total_nights")
+  adultsCount        Int             @default(1) @map("adults_count")
+  childrenCount      Int             @default(0) @map("children_count")
+  coverImageUrl      String?         @map("cover_image_url")
+
+  inclusions         Json?
+  exclusions         Json?
+  termsAndConditions String?         @db.Text @map("terms_and_conditions")
+  cancellationPolicy String?         @db.Text @map("cancellation_policy")
+
+  showPricing        Boolean         @default(true) @map("show_pricing")
+  showHotels         Boolean         @default(true) @map("show_hotels")
+  allowDirectAccept  Boolean         @default(true) @map("allow_direct_accept")
+
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  client             Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  enquiry            Enquiry?        @relation(fields: [enquiryId], references: [id], onDelete: SetNull)
+  customer           Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  days               ItineraryDay[]
+  pricingTiers       ItineraryPricingTier[]
+
+  @@index([clientId])
+  @@index([shareSlug])
+  @@map("itineraries")
+}
+
+model ItineraryDay {
+  id              String    @id @default(cuid())
+  itineraryId     String    @map("itinerary_id")
+  dayNumber       Int       @map("day_number")
+  date            DateTime?
+  title           String
+  stayCity        String?   @map("stay_city")
+  description     String    @db.Text
+  meals           Json?     // Array of meal types e.g. ["Breakfast", "Dinner"]
+  hotelName       String?   @map("hotel_name")
+  roomCategory    String?   @map("room_category")
+  hotelRating     Int?      @map("hotel_rating")
+  transferDetails String?   @map("transfer_details")
+  photos          Json?     // Array of string URLs
+
+  itinerary       Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+
+  @@index([itineraryId, dayNumber])
+  @@map("itinerary_days")
+}
+
+model ItineraryPricingTier {
+  id             String    @id @default(cuid())
+  itineraryId    String    @map("itinerary_id")
+  tierName       String    @map("tier_name") // "Standard (3★)", "Deluxe (4★)", "Luxury (5★)"
+  pricePerPerson Int       @default(0) @map("price_per_person") // in Paise
+  totalPrice     Int       @default(0) @map("total_price")      // in Paise
+  hotelOverview  String?   @map("hotel_overview")
+  isRecommended  Boolean   @default(false) @map("is_recommended")
+
+  itinerary      Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+
+  @@index([itineraryId])
+  @@map("itinerary_pricing_tiers")
+}
+

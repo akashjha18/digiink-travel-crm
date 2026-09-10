@@ -28,12 +28,18 @@ interface MeProfile {
   companyEmail: string;
   companyProfile: {
     companyName: string | null;
+    logoUrl: string | null;
     address: string | null;
     gstNumber: string | null;
     phone: string | null;
     email: string | null;
     businessType: string | null;
     currency: string | null;
+    primaryColor?: string | null;
+    secondaryColor?: string | null;
+    whatsappNumber?: string | null;
+    websiteUrl?: string | null;
+    itineraryFooterNotes?: string | null;
   } | null;
   plan: {
     id: string;
@@ -57,9 +63,23 @@ export function ProfilePage() {
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameSaved, setNameSaved] = useState(false);
 
+  // Agency White-Label Branding State
+  const [editingBranding, setEditingBranding] = useState(false);
+  const [primaryColorDraft, setPrimaryColorDraft] = useState("#2563eb");
+  const [secondaryColorDraft, setSecondaryColorDraft] = useState("#0f172a");
+  const [whatsappDraft, setWhatsappDraft] = useState("");
+  const [websiteDraft, setWebsiteDraft] = useState("");
+  const [footerNotesDraft, setFooterNotesDraft] = useState("");
+  const [savingBranding, setSavingBranding] = useState(false);
+  const [brandingSaved, setBrandingSaved] = useState(false);
+  const [brandingError, setBrandingError] = useState<string | null>(null);
+
   const [uploading, setUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const companyLogoInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingCompanyLogo, setUploadingCompanyLogo] = useState(false);
+  const [companyLogoError, setCompanyLogoError] = useState<string | null>(null);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -80,11 +100,39 @@ export function ProfilePage() {
         setMe(data.data);
         setNameDraft(data.data.name);
         setEmailDraft(data.data.email);
+        if (data.data.companyProfile) {
+          setPrimaryColorDraft(data.data.companyProfile.primaryColor || "#2563eb");
+          setSecondaryColorDraft(data.data.companyProfile.secondaryColor || "#0f172a");
+          setWhatsappDraft(data.data.companyProfile.whatsappNumber || data.data.phone || "");
+          setWebsiteDraft(data.data.companyProfile.websiteUrl || "");
+          setFooterNotesDraft(data.data.companyProfile.itineraryFooterNotes || "");
+        }
       })
-      .catch((err) => {
-        console.error("Failed to load /client/me", err);
+      .catch(() => {
+        setNameError("Failed to load profile.");
       })
       .finally(() => setLoading(false));
+  }
+
+  async function handleSaveBranding() {
+    try {
+      setSavingBranding(true);
+      setBrandingError(null);
+      await apiClient.put("/client/company-profile", {
+        primaryColor: primaryColorDraft,
+        secondaryColor: secondaryColorDraft,
+        whatsappNumber: whatsappDraft,
+        websiteUrl: websiteDraft || undefined,
+        itineraryFooterNotes: footerNotesDraft || undefined,
+      });
+      setBrandingSaved(true);
+      setEditingBranding(false);
+      loadMe();
+    } catch (err: any) {
+      setBrandingError(err.response?.data?.message || "Failed to update branding.");
+    } finally {
+      setSavingBranding(false);
+    }
   }
 
   useEffect(() => {
@@ -137,6 +185,24 @@ export function ProfilePage() {
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleCompanyLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCompanyLogoError(null);
+    setUploadingCompanyLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append("logo", file);
+      await apiClient.post("/onboarding/company-logo", formData);
+      window.location.reload();
+    } catch (err: any) {
+      setCompanyLogoError(err.response?.data?.message ?? "Could not upload company logo");
+    } finally {
+      setUploadingCompanyLogo(false);
+      if (companyLogoInputRef.current) companyLogoInputRef.current.value = "";
     }
   }
 
@@ -238,6 +304,21 @@ export function ProfilePage() {
         <Typography variant="caption" color="text.secondary" display="block" mt={1}>
           JPG, PNG or WEBP. Max 2MB.
         </Typography>
+        {me.isClientAdmin && (
+          <Box mt={2} pt={2} borderTop="1px solid #eef0f3">
+            <Typography variant="subtitle2" fontWeight={700} mb={1}>Company Logo</Typography>
+            <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
+              <Avatar src={me.companyProfile?.logoUrl ?? undefined} variant="rounded" sx={{ width: 48, height: 48, bgcolor: "#eff6ff", color: "#2563eb", fontWeight: 800 }}>
+                {me.businessName.trim().charAt(0).toUpperCase() || "C"}
+              </Avatar>
+              <Button component="label" variant="outlined" size="small" disabled={uploadingCompanyLogo} sx={{ textTransform: "none" }}>
+                {uploadingCompanyLogo ? "Uploading..." : me.companyProfile?.logoUrl ? "Replace Company Logo" : "Upload Company Logo"}
+                <input ref={companyLogoInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={handleCompanyLogoChange} />
+              </Button>
+            </Box>
+            {companyLogoError && <Alert severity="error" sx={{ mt: 1 }}>{companyLogoError}</Alert>}
+          </Box>
+        )}
       </Paper>
 
       <Paper
@@ -401,6 +482,130 @@ export function ProfilePage() {
             <Button
               onClick={() => { setEditing(false); setNameDraft(me.name); setEmailDraft(me.email); setNameError(null); }}
               disabled={savingName}
+            >
+              Cancel
+            </Button>
+          </Box>
+        )}
+      </Paper>
+
+      {/* Agency White-Label Branding Card */}
+      <Paper
+        elevation={0}
+        sx={{ p: 4, mb: 3, borderRadius: 3, border: "1px solid #eef0f3", boxShadow: "0 2px 8px rgba(16,24,40,0.04)" }}
+      >
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box>
+            <Typography variant="h6" fontWeight={700}>
+              Travel Agency White-Label Branding
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Customize how your public travel itineraries and proposals look when shared with travelers.
+            </Typography>
+          </Box>
+          {!editingBranding && me.isClientAdmin && (
+            <Button startIcon={<EditRoundedIcon />} onClick={() => { setEditingBranding(true); setBrandingSaved(false); }}>
+              Edit Branding
+            </Button>
+          )}
+        </Box>
+
+        {brandingSaved && <Alert severity="success" sx={{ mb: 2 }}>Agency branding updated successfully.</Alert>}
+        {brandingError && <Alert severity="error" sx={{ mb: 2 }}>{brandingError}</Alert>}
+
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6}>
+            <Typography variant="caption" color="text.secondary">Primary Brand Color (Used for Buttons & Accents)</Typography>
+            {editingBranding ? (
+              <Box display="flex" alignItems="center" gap={1.5} mt={0.5}>
+                <input
+                  type="color"
+                  value={primaryColorDraft}
+                  onChange={(e) => setPrimaryColorDraft(e.target.value)}
+                  style={{ width: 42, height: 42, border: "none", borderRadius: 8, cursor: "pointer" }}
+                />
+                <TextField
+                  size="small"
+                  value={primaryColorDraft}
+                  onChange={(e) => setPrimaryColorDraft(e.target.value)}
+                  sx={{ width: 140 }}
+                />
+              </Box>
+            ) : (
+              <Box display="flex" alignItems="center" gap={1} mt={0.5}>
+                <Box sx={{ width: 24, height: 24, borderRadius: "50%", bgcolor: me.companyProfile?.primaryColor || "#2563eb", border: "1px solid #cbd5e1" }} />
+                <Typography variant="body1" fontWeight={600}>{me.companyProfile?.primaryColor || "#2563eb"}</Typography>
+              </Box>
+            )}
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <Typography variant="caption" color="text.secondary">Agency WhatsApp Number (For Direct Traveler Chat)</Typography>
+            {editingBranding ? (
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="e.g. +91 9876543210"
+                value={whatsappDraft}
+                onChange={(e) => setWhatsappDraft(e.target.value)}
+                sx={{ mt: 0.5 }}
+              />
+            ) : (
+              <Typography variant="body1" fontWeight={500}>{me.companyProfile?.whatsappNumber || me.phone || "—"}</Typography>
+            )}
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <Typography variant="caption" color="text.secondary">Agency Website URL</Typography>
+            {editingBranding ? (
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="https://youragency.com"
+                value={websiteDraft}
+                onChange={(e) => setWebsiteDraft(e.target.value)}
+                sx={{ mt: 0.5 }}
+              />
+            ) : (
+              <Typography variant="body1" fontWeight={500}>{me.companyProfile?.websiteUrl || "—"}</Typography>
+            )}
+          </Grid>
+
+          <Grid item xs={12}>
+            <Typography variant="caption" color="text.secondary">Itinerary Footer Disclaimer & Notes</Typography>
+            {editingBranding ? (
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                size="small"
+                placeholder="e.g. Registered with Ministry of Tourism. All rates are subject to hotel availability at the time of booking."
+                value={footerNotesDraft}
+                onChange={(e) => setFooterNotesDraft(e.target.value)}
+                sx={{ mt: 0.5 }}
+              />
+            ) : (
+              <Typography variant="body1" fontWeight={500}>{me.companyProfile?.itineraryFooterNotes || "—"}</Typography>
+            )}
+          </Grid>
+        </Grid>
+
+        {editingBranding && (
+          <Box display="flex" gap={1.5} mt={3}>
+            <Button
+              variant="contained"
+              disabled={savingBranding}
+              onClick={handleSaveBranding}
+              sx={{ bgcolor: "#2f6fed", "&:hover": { bgcolor: "#2559c4" } }}
+            >
+              {savingBranding ? "Saving..." : "Save Branding"}
+            </Button>
+            <Button
+              onClick={() => {
+                setEditingBranding(false);
+                setBrandingError(null);
+              }}
+              disabled={savingBranding}
             >
               Cancel
             </Button>

@@ -64,4 +64,19 @@ rolesRouter.patch("/:id", requirePermission("staff", "edit"), async (req, res, n
   }
 });
 
+rolesRouter.delete("/:id", requirePermission("staff", "delete"), async (req, res, next) => {
+  try {
+    const existing = await prisma.role.findFirst({ where: { id: req.params.id, clientId: req.clientId! }, include: { users: { select: { id: true } } } });
+    if (!existing) return fail(res, 404, "Role not found", "NOT_FOUND");
+    if (existing.isSystemRole) return fail(res, 400, "The built-in Client Admin role cannot be deleted", "SYSTEM_ROLE_LOCKED");
+    if (existing.users.length > 0) return fail(res, 409, "Reassign team members before deleting this role", "ROLE_HAS_USERS");
+
+    await prisma.role.delete({ where: { id: existing.id } });
+    await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "DELETE_ROLE", target: existing.id });
+    return ok(res, {}, "Role deleted");
+  } catch (err) {
+    next(err);
+  }
+});
+
 rolesRouter.get("/modules", requirePermission("staff", "view"), (_req, res) => ok(res, MODULES));

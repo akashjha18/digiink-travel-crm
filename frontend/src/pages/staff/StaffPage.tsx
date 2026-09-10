@@ -36,6 +36,7 @@ import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import HowToRegRoundedIcon from "@mui/icons-material/HowToRegRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import { apiClient } from "../../api/client";
 
 export function StaffPage() {
@@ -85,6 +86,21 @@ export function StaffPage() {
       setStaff((prev) =>
         prev.map((item) => (item.id === u.id ? { ...item, isActive: !item.isActive } : item))
       );
+    } catch (err: any) {
+      window.alert(err.response?.data?.message ?? "Could not update team member status");
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  async function deleteMember(u: any) {
+    if (!window.confirm(`Delete ${u.name}'s account permanently?`)) return;
+    try {
+      setTogglingId(u.id);
+      await apiClient.delete(`/users/staff/${u.id}`);
+      setStaff((prev) => prev.filter((item) => item.id !== u.id));
+    } catch (err: any) {
+      window.alert(err.response?.data?.message ?? "Could not delete team member");
     } finally {
       setTogglingId(null);
     }
@@ -362,10 +378,9 @@ export function StaffPage() {
                   {/* Action */}
                   <TableCell align="right" sx={{ py: 2, px: 3 }}>
                     {!u.isClientAdmin ? (
+                      <Box display="flex" justifyContent="flex-end" gap={0.5}>
                       <Button
-                        size="small"
-                        disabled={isToggling}
-                        onClick={() => toggleActive(u)}
+                        size="small" disabled={isToggling} onClick={() => toggleActive(u)}
                         startIcon={
                           isToggling ? (
                             <CircularProgress size={14} sx={{ color: "inherit" }} />
@@ -391,6 +406,8 @@ export function StaffPage() {
                       >
                         {u.isActive ? "Deactivate" : "Reactivate"}
                       </Button>
+                      <IconButton size="small" color="error" disabled={isToggling} onClick={() => deleteMember(u)} title="Delete team member"><DeleteOutlineRoundedIcon fontSize="small" /></IconButton>
+                      </Box>
                     ) : (
                       <Typography variant="caption" color="text.secondary" fontWeight={600}>
                         Protected

@@ -18,6 +18,8 @@ export function OnboardingWizardPage() {
   });
   const [branches, setBranches] = useState<Array<{ id: string; name: string; address?: string }>>([]);
   const [branchForm, setBranchForm] = useState({ name: "", address: "" });
+  const [logoName, setLogoName] = useState("");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
     apiClient.get("/onboarding/status").then(({ data }) => {
@@ -40,6 +42,19 @@ export function OnboardingWizardPage() {
 
   async function saveProfile() {
     await apiClient.post("/onboarding/company-profile", profile);
+  }
+
+  async function uploadLogo(file: File) {
+    setUploadingLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append("logo", file);
+      const { data } = await apiClient.post("/onboarding/company-logo", formData);
+      setProfile((current) => ({ ...current, logoUrl: data.data.logoUrl }));
+      setLogoName(file.name);
+    } finally {
+      setUploadingLogo(false);
+    }
   }
 
   async function addBranch() {
@@ -75,7 +90,13 @@ export function OnboardingWizardPage() {
         {activeStep === 0 && (
           <Grid container spacing={2}>
             <Grid item xs={12}><TextField fullWidth label="Company Name" value={profile.companyName} onChange={(e) => setProfile({ ...profile, companyName: e.target.value })} /></Grid>
-            <Grid item xs={12}><TextField fullWidth label="Logo URL" value={profile.logoUrl} onChange={(e) => setProfile({ ...profile, logoUrl: e.target.value })} /></Grid>
+            <Grid item xs={12}>
+              <Button component="label" variant="outlined" disabled={uploadingLogo} sx={{ justifyContent: "flex-start", textTransform: "none", width: "100%" }}>
+                {uploadingLogo ? "Uploading logo..." : logoName || (profile.logoUrl ? "Replace company logo" : "Upload company logo")}
+                <input hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadLogo(file); }} />
+              </Button>
+              <Typography variant="caption" color="text.secondary">JPG, PNG or WEBP. Maximum 2MB.</Typography>
+            </Grid>
             <Grid item xs={12}><TextField fullWidth label="Address" value={profile.address} onChange={(e) => setProfile({ ...profile, address: e.target.value })} /></Grid>
             <Grid item xs={6}><TextField fullWidth label="GST Number" value={profile.gstNumber} onChange={(e) => setProfile({ ...profile, gstNumber: e.target.value })} /></Grid>
             <Grid item xs={6}><TextField fullWidth label="Phone" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} /></Grid>

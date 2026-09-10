@@ -49,6 +49,30 @@ superAdminRouter.get("/clients/:id", async (req, res, next) => {
   }
 });
 
+superAdminRouter.get("/plans", async (_req, res, next) => {
+  try {
+    const plans = await prisma.plan.findMany({ where: { isActive: true }, orderBy: { priceInPaise: "asc" } });
+    return ok(res, plans);
+  } catch (err) {
+    next(err);
+  }
+});
+
+superAdminRouter.patch("/clients/:id/plan", async (req, res, next) => {
+  try {
+    const { planId } = z.object({ planId: z.string().min(1) }).parse(req.body);
+    const plan = await prisma.plan.findFirst({ where: { id: planId, isActive: true } });
+    if (!plan) return fail(res, 400, "Plan not found or inactive", "PLAN_NOT_AVAILABLE");
+    const client = await prisma.client.findUnique({ where: { id: req.params.id } });
+    if (!client) return fail(res, 404, "Client not found", "NOT_FOUND");
+    const updated = await prisma.client.update({ where: { id: client.id }, data: { planId }, include: { plan: true } });
+    await logSuperAdminAction({ actorId: req.auth!.sub, actorEmail: "super-admin", action: "CHANGE_CLIENT_PLAN", targetClientId: client.id, metadata: { fromPlanId: client.planId, toPlanId: plan.id } });
+    return ok(res, updated, "Client plan updated");
+  } catch (err) {
+    next(err);
+  }
+});
+
 const createClientSchema = z.object({
   businessName: z.string().min(2),
   ownerName: z.string().min(2),

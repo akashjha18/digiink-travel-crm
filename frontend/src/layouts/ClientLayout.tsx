@@ -17,6 +17,7 @@ import ContactPhoneRoundedIcon from "@mui/icons-material/ContactPhoneRounded";
 import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
 import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
 import RequestQuoteRoundedIcon from "@mui/icons-material/RequestQuoteRounded";
+import MapRoundedIcon from "@mui/icons-material/MapRounded";
 import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
 import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
@@ -41,44 +42,45 @@ const NAV_GROUPS = [
   {
     title: "OVERVIEW",
     items: [
-      { to: "/app/dashboard", label: "Dashboard", feature: null, icon: DashboardRoundedIcon },
-      { to: "/app/reports", label: "Analytics & Reports", feature: "basic_reports", icon: BarChartRoundedIcon },
+      { to: "/app/dashboard", label: "Dashboard", feature: null, permission: "dashboard", icon: DashboardRoundedIcon },
+      { to: "/app/reports", label: "Analytics & Reports", feature: "basic_reports", permission: "reports", icon: BarChartRoundedIcon },
     ],
   },
   {
     title: "SALES & CRM",
     items: [
-      { to: "/app/enquiries", label: "Leads", feature: "enquiry_crm", icon: ContactPhoneRoundedIcon },
-      { to: "/app/pipeline", label: "Pipeline", feature: "enquiry_crm", icon: TimelineRoundedIcon },
-      { to: "/app/customers", label: "Customers", feature: "enquiry_crm", icon: PeopleAltRoundedIcon },
-      { to: "/app/quotations", label: "Quotations", feature: "quotation", icon: RequestQuoteRoundedIcon },
+      { to: "/app/enquiries", label: "Leads", feature: "enquiry_crm", permission: "enquiries", icon: ContactPhoneRoundedIcon },
+      { to: "/app/pipeline", label: "Pipeline", feature: "enquiry_crm", permission: "enquiries", icon: TimelineRoundedIcon },
+      { to: "/app/customers", label: "Customers", feature: "enquiry_crm", permission: "customers", icon: PeopleAltRoundedIcon },
+      { to: "/app/quotations", label: "Quotations", feature: "quotation", permission: "quotations", icon: RequestQuoteRoundedIcon },
+      { to: "/app/itineraries", label: "Itineraries", feature: "quotation", permission: "quotations", icon: MapRoundedIcon },
     ],
   },
   {
     title: "OPERATIONS & TRIPS",
     items: [
-      { to: "/app/bookings", label: "Bookings", feature: "bookings", icon: EventAvailableRoundedIcon },
-      { to: "/app/trips", label: "Trips Dispatch", feature: "bookings", icon: DirectionsCarRoundedIcon },
-      { to: "/app/drivers", label: "Drivers", feature: "drivers", icon: BadgeRoundedIcon },
-      { to: "/app/vehicles", label: "Fleet Vehicles", feature: "vehicles", icon: LocalShippingRoundedIcon },
+      { to: "/app/bookings", label: "Bookings", feature: "bookings", permission: "bookings", icon: EventAvailableRoundedIcon },
+      { to: "/app/trips", label: "Trips Dispatch", feature: "bookings", permission: "trips", icon: DirectionsCarRoundedIcon },
+      { to: "/app/drivers", label: "Drivers", feature: "drivers", permission: "drivers", icon: BadgeRoundedIcon },
+      { to: "/app/vehicles", label: "Fleet Vehicles", feature: "vehicles", permission: "vehicles", icon: LocalShippingRoundedIcon },
     ],
   },
   {
     title: "FINANCE & BILLING",
     items: [
-      { to: "/app/receivables", label: "Receivables", feature: "payments", icon: AccountBalanceWalletRoundedIcon },
-      { to: "/app/invoices", label: "Invoices", feature: "payments", icon: ReceiptLongRoundedIcon },
+      { to: "/app/receivables", label: "Receivables", feature: "payments", permission: "payments", icon: AccountBalanceWalletRoundedIcon },
+      { to: "/app/invoices", label: "Invoices", feature: "payments", permission: "invoices", icon: ReceiptLongRoundedIcon },
     ],
   },
   {
     title: "WORKFLOWS & SCALE",
     items: [
-      { to: "/app/automation", label: "Automations", feature: "workflow_automation", icon: BoltRoundedIcon },
-      { to: "/app/whatsapp", label: "WhatsApp Suite", feature: "integrations", icon: WhatsAppIcon },
-      { to: "/app/branches", label: "Branches", feature: "multi_branch", icon: AccountTreeRoundedIcon },
-      { to: "/app/custom-fields", label: "Custom Fields", feature: "custom_modules", icon: TuneRoundedIcon },
-      { to: "/app/staff", label: "Staff Members", feature: null, icon: GroupRoundedIcon },
-      { to: "/app/roles", label: "Roles & Access", feature: null, icon: AdminPanelSettingsRoundedIcon },
+      { to: "/app/automation", label: "Automations", feature: "workflow_automation", permission: "settings", icon: BoltRoundedIcon },
+      { to: "/app/whatsapp", label: "WhatsApp Suite", feature: "integrations", permission: "settings", icon: WhatsAppIcon },
+      { to: "/app/branches", label: "Branches", feature: "multi_branch", permission: "settings", icon: AccountTreeRoundedIcon },
+      { to: "/app/custom-fields", label: "Custom Fields", feature: "custom_modules", permission: "settings", icon: TuneRoundedIcon },
+      { to: "/app/staff", label: "Staff Members", feature: null, permission: "staff", icon: GroupRoundedIcon },
+      { to: "/app/roles", label: "Roles & Access", feature: null, permission: "staff", icon: AdminPanelSettingsRoundedIcon },
     ],
   },
 ];
@@ -133,7 +135,7 @@ export function ClientLayout() {
           }}
         >
           <Avatar
-            src={me?.avatarUrl ?? undefined}
+            src={me?.companyProfile?.logoUrl || client?.companyProfile?.logoUrl || undefined}
             sx={{
               bgcolor: "#2563eb",
               color: "#fff",
@@ -144,7 +146,7 @@ export function ClientLayout() {
               boxShadow: "0 4px 12px rgba(37, 99, 235, 0.35)",
             }}
           >
-            {initial}
+            {!(me?.companyProfile?.logoUrl || client?.companyProfile?.logoUrl) && initial}
           </Avatar>
           <Box minWidth={0}>
             <Typography variant="subtitle1" fontWeight={800} noWrap sx={{ color: "#f8fafc", letterSpacing: "-0.01em" }}>
@@ -186,8 +188,10 @@ export function ClientLayout() {
           }}
         >
           {NAV_GROUPS.map((group) => {
+            const permissions = me?.permissions as Record<string, { view?: boolean }> | undefined;
+            const isAdmin = Boolean(me?.isClientAdmin);
             const visibleItems = group.items.filter(
-              (item) => !item.feature || entitlements[item.feature]
+              (item) => (!item.feature || entitlements[item.feature]) && (isAdmin || !item.permission || permissions?.[item.permission]?.view)
             );
             if (visibleItems.length === 0) return null;
 

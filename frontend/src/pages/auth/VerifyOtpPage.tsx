@@ -4,6 +4,15 @@ import { Box, Button, Paper, TextField, Typography, Alert } from "@mui/material"
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../hooks/useAuth";
 
+function getClientLanding(permissions: Record<string, { view?: boolean }> | undefined) {
+  if (permissions?.dashboard?.view) return "/app/dashboard";
+  if (permissions?.enquiries?.view) return "/app/enquiries";
+  if (permissions?.bookings?.view) return "/app/bookings";
+  if (permissions?.customers?.view) return "/app/customers";
+  if (permissions?.reports?.view) return "/app/reports";
+  return "/app/profile";
+}
+
 export function VerifyOtpPage() {
   const location = useLocation() as { state?: { otpToken?: string; email?: string } };
   const navigate = useNavigate();
@@ -24,8 +33,8 @@ export function VerifyOtpPage() {
     setError(null);
     try {
       const { data } = await apiClient.post("/auth/verify-otp", { otpToken, code });
-      const { accessToken, refreshToken, role, subscriptionStatus, mustChangePassword, onboardingCompleted } = data.data;
-      setAuth({ accessToken, refreshToken, role, subscriptionStatus, mustChangePassword });
+      const { accessToken, refreshToken, role, subscriptionStatus, mustChangePassword, onboardingCompleted, permissions, isClientAdmin } = data.data;
+      setAuth({ accessToken, refreshToken, role, subscriptionStatus, mustChangePassword, permissions, isClientAdmin });
 
       if (subscriptionStatus === "LOCKED") {
         navigate("/payment-renewal");
@@ -34,7 +43,7 @@ export function VerifyOtpPage() {
       } else if (!onboardingCompleted) {
         navigate("/onboarding");
       } else {
-        navigate("/app/dashboard");
+        navigate(getClientLanding(permissions));
       }
     } catch (err: any) {
       setError(err.response?.data?.message ?? "Invalid code");

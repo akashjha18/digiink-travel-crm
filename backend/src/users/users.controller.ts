@@ -34,7 +34,7 @@ usersRouter.get("/", async (req, res, next) => {
 usersRouter.get("/staff", requirePermission("staff", "view"), async (req, res, next) => {
   try {
     const users = await prisma.user.findMany({
-      where: { clientId: req.clientId! },
+      where: { clientId: req.clientId!, deletedAt: null },
       include: { role: true },
       orderBy: { createdAt: "asc" },
     });
@@ -121,9 +121,9 @@ usersRouter.delete("/staff/:id", requirePermission("staff", "delete"), async (re
     if (!existing) return fail(res, 404, "Staff member not found", "NOT_FOUND");
     if (existing.isClientAdmin) return fail(res, 400, "The Client Admin account cannot be deleted", "CANNOT_DELETE_ADMIN");
 
-    await prisma.user.update({ where: { id: req.params.id }, data: { isActive: false } });
-    await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "DEACTIVATE_USER", target: req.params.id });
-    return ok(res, {}, "Staff member deactivated");
+    await prisma.user.update({ where: { id: req.params.id }, data: { isActive: false, deletedAt: new Date() } });
+    await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "DELETE_USER", target: req.params.id });
+    return ok(res, {}, "Staff member deleted");
   } catch (err: any) {
     if (err.code === "SELF_DELETE_FORBIDDEN") {
       return fail(res, 400, err.message, err.code);

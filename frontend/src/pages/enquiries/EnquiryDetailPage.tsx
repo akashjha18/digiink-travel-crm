@@ -35,6 +35,7 @@ import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
+import MapRoundedIcon from "@mui/icons-material/MapRounded";
 import { apiClient } from "../../api/client";
 
 const STAGES = ["NEW", "CONTACTED", "QUOTED", "NEGOTIATION", "WON", "LOST"];
@@ -295,6 +296,21 @@ export function EnquiryDetailPage() {
           </Box>
 
           <Box display="flex" gap={1.25} flexWrap="wrap">
+            <Button
+              variant="outlined"
+              color="primary"
+              startIcon={<MapRoundedIcon />}
+              onClick={() => navigate(`/app/itineraries/new?enquiryId=${id}`)}
+              sx={{
+                borderRadius: 2.5,
+                px: 2,
+                py: 1,
+                textTransform: "none",
+                fontWeight: 700,
+              }}
+            >
+              Build Itinerary
+            </Button>
             <Button
               variant="contained"
               startIcon={<EventAvailableRoundedIcon />}

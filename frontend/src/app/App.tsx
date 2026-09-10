@@ -23,6 +23,9 @@ import { RoleBuilderPage } from "../pages/roles/RoleBuilderPage";
 import { QuotationsListPage } from "../pages/quotations/QuotationsListPage";
 import { QuotationBuilderPage } from "../pages/quotations/QuotationBuilderPage";
 import { QuotationDetailPage } from "../pages/quotations/QuotationDetailPage";
+import { ItinerariesListPage } from "../pages/itineraries/ItinerariesListPage";
+import { ItineraryBuilderPage } from "../pages/itineraries/ItineraryBuilderPage";
+import { PublicItineraryPage } from "../pages/public/PublicItineraryPage";
 import { BookingsListPage } from "../pages/bookings/BookingsListPage";
 import { BookingDetailPage } from "../pages/bookings/BookingDetailPage";
 import { BookingEditPage } from "../pages/bookings/BookingEditPage";
@@ -60,6 +63,7 @@ export function App() {
           <BrowserRouter>
             <Routes>
               <Route path="/login" element={<ClientLoginPage />} />
+              <Route path="/view/:shareSlug" element={<PublicItineraryPage />} />
               <Route path="/admin/login" element={<SuperAdminLoginPage />} />
               <Route path="/forgot-password" element={<ClientForgotPasswordPage />} />
               <Route path="/admin/forgot-password" element={<AdminForgotPasswordPage />} />
@@ -84,6 +88,9 @@ export function App() {
                   <Route path="/app/quotations/new" element={<QuotationBuilderPage />} />
                   <Route path="/app/quotations/:id" element={<QuotationDetailPage />} />
                   <Route path="/app/quotations/:id/new-version" element={<QuotationBuilderPage />} />
+                  <Route path="/app/itineraries" element={<ItinerariesListPage />} />
+                  <Route path="/app/itineraries/new" element={<ItineraryBuilderPage />} />
+                  <Route path="/app/itineraries/:id/edit" element={<ItineraryBuilderPage />} />
                   <Route path="/app/bookings" element={<BookingsListPage />} />
                   <Route path="/app/bookings/:id" element={<BookingDetailPage />} />
                   <Route path="/app/bookings/:id/edit" element={<BookingEditPage />} />

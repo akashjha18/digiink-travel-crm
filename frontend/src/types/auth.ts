@@ -8,4 +8,6 @@ export interface AuthState {
   role: UserRole;
   subscriptionStatus?: SubscriptionStatus;
   mustChangePassword?: boolean;
+  isClientAdmin?: boolean;
+  permissions?: Record<string, { view?: boolean }>;
 }

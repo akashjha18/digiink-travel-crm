@@ -32,6 +32,7 @@ import RemoveDoneRoundedIcon from "@mui/icons-material/RemoveDoneRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import LockPersonRoundedIcon from "@mui/icons-material/LockPersonRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import { apiClient } from "../../api/client";
 
 const ACTIONS = ["view", "add", "edit", "delete", "export"] as const;
@@ -127,6 +128,16 @@ export function RoleBuilderPage() {
       load();
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleDelete(role: any) {
+    if (role.isSystemRole || !window.confirm(`Delete the ${role.name} role?`)) return;
+    try {
+      await apiClient.delete(`/roles/${role.id}`);
+      load();
+    } catch (err: any) {
+      window.alert(err.response?.data?.message ?? "Could not delete role");
     }
   }
 
@@ -308,18 +319,10 @@ export function RoleBuilderPage() {
                     </Typography>
                   </Box>
 
-                  <Button
-                    size="small"
-                    onClick={() => setSelectedRole(r)}
-                    sx={{
-                      textTransform: "none",
-                      fontWeight: 700,
-                      fontSize: "0.8rem",
-                      color: "#2563eb",
-                    }}
-                  >
-                    View Scope
-                  </Button>
+                  <Box display="flex" alignItems="center" gap={0.5}>
+                    <Button size="small" onClick={() => setSelectedRole(r)} sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.8rem", color: "#2563eb" }}>View Scope</Button>
+                    {!r.isSystemRole && <IconButton size="small" color="error" onClick={() => handleDelete(r)} title="Delete role"><DeleteOutlineRoundedIcon fontSize="small" /></IconButton>}
+                  </Box>
                 </Box>
               </Paper>
             </Grid>

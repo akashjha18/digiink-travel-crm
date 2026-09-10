@@ -23,6 +23,8 @@ import { automationRouter } from "../automation/automation.controller";
 import { branchesRouter } from "../branches/branches.controller";
 import { whatsappRouter, whatsappWebhookRouter } from "../whatsapp/whatsapp.controller";
 import { customFieldsRouter } from "../custom-fields/custom-fields.controller";
+import { itinerariesRouter } from "../itineraries/itineraries.controller";
+import { publicItineraryRouter } from "../itineraries/public-itinerary.controller";
 import { prisma } from "../db/prisma";
 import { z } from "zod";
 import multer from "multer";
@@ -30,6 +32,7 @@ import path from "path";
 import fs from "fs";
 import { fail } from "../common/response";
 import { logTenantAction } from "../audit/audit.service";
+import { requirePermission } from "../guards/rbac.guard";
 
 export const apiRouter = Router();
 
@@ -79,9 +82,46 @@ apiRouter.use("/branches", branchesRouter);
 apiRouter.use("/whatsapp-webhook", whatsappWebhookRouter);
 apiRouter.use("/whatsapp", whatsappRouter);
 apiRouter.use("/custom-fields", customFieldsRouter);
+apiRouter.use("/itineraries", itinerariesRouter);
+apiRouter.use("/public/itinerary", publicItineraryRouter);
 
-apiRouter.get("/client/profile", authenticate, scopeTenant(), (req, res) => {
-  return ok(res, req.client);
+apiRouter.get("/client/profile", authenticate, scopeTenant(), async (req, res, next) => {
+  try {
+    const companyProfile = await prisma.companyProfile.findUnique({ where: { clientId: req.clientId! } });
+    return ok(res, { ...req.client, companyProfile });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const companyProfileUpdateSchema = z.object({
+  companyName: z.string().trim().min(1).max(120).optional(),
+  phone: z.string().trim().max(30).optional(),
+  email: z.string().trim().email().optional(),
+  address: z.string().trim().max(500).optional(),
+  gstNumber: z.string().trim().max(30).optional(),
+  primaryColor: z.string().trim().regex(/^#([0-9a-fA-F]{3}){1,2}$/, "Invalid hex color").optional(),
+  secondaryColor: z.string().trim().regex(/^#([0-9a-fA-F]{3}){1,2}$/, "Invalid hex color").optional(),
+  whatsappNumber: z.string().trim().max(30).optional(),
+  websiteUrl: z.string().trim().url().optional().or(z.literal("")),
+  itineraryFooterNotes: z.string().trim().max(2000).optional(),
+});
+
+apiRouter.put("/client/company-profile", authenticate, scopeTenant(), requirePermission("settings", "edit"), async (req, res, next) => {
+  try {
+    const parsed = companyProfileUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return fail(res, 400, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid profile data");
+    }
+    const updated = await prisma.companyProfile.upsert({
+      where: { clientId: req.clientId! },
+      update: parsed.data,
+      create: { clientId: req.clientId!, ...parsed.data },
+    });
+    return ok(res, updated, "Company branding updated successfully");
+  } catch (err) {
+    next(err);
+  }
 });
 
 const profileUpdateSchema = z.object({
@@ -96,12 +136,12 @@ apiRouter.get("/client/me", authenticate, scopeTenant(["ACTIVE", "EXPIRING_SOON"
       select: {
         id: true, name: true, email: true, avatarUrl: true, isClientAdmin: true,
         lastLoginAt: true, createdAt: true,
-        role: { select: { name: true } }, branch: { select: { name: true } },
+        role: { select: { name: true, permissionsJson: true } }, branch: { select: { name: true } },
         client: {
           select: {
             businessName: true, clientCode: true, ownerName: true, email: true, phone: true,
             plan: { select: { id: true, name: true, priceInPaise: true, entitlements: true, maxUsers: true, maxEnquiriesPerMonth: true, maxBranches: true } },
-            companyProfile: { select: { companyName: true, address: true, gstNumber: true, phone: true, email: true, businessType: true, currency: true } },
+            companyProfile: { select: { companyName: true, logoUrl: true, address: true, gstNumber: true, phone: true, email: true, businessType: true, currency: true, primaryColor: true, secondaryColor: true, whatsappNumber: true, websiteUrl: true, itineraryFooterNotes: true } },
           },
         },
       },
@@ -109,7 +149,7 @@ apiRouter.get("/client/me", authenticate, scopeTenant(["ACTIVE", "EXPIRING_SOON"
     return ok(res, {
       id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl,
       isClientAdmin: user.isClientAdmin, lastLoginAt: user.lastLoginAt, createdAt: user.createdAt,
-      role: user.role, branch: user.branch, businessName: user.client.businessName,
+      role: user.role, branch: user.branch, permissions: user.role.permissionsJson, businessName: user.client.businessName,
       clientCode: user.client.clientCode, ownerName: user.client.ownerName,
       phone: user.client.phone, companyEmail: user.client.email, companyProfile: user.client.companyProfile,
       plan: user.client.plan,
@@ -164,7 +204,7 @@ apiRouter.post("/client/me/avatar", authenticate, scopeTenant(["ACTIVE", "EXPIRI
 // Professional+/Business+ tiers add booking revenue, outstanding
 // payments, and advanced analytics, which land in Phases 5/7/8 once
 // Booking/Payment data actually exists to aggregate.
-apiRouter.get("/client/dashboard", authenticate, scopeTenant(), requireEntitlement("enquiry_crm"), async (req, res, next) => {
+apiRouter.get("/client/dashboard", authenticate, scopeTenant(), requireEntitlement("enquiry_crm"), requirePermission("dashboard", "view"), async (req, res, next) => {
   try {
     const clientId = req.clientId!;
     const startOfMonth = new Date();

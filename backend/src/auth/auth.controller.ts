@@ -43,7 +43,7 @@ authRouter.post("/login", async (req, res, next) => {
       return ok(res, { accessToken, refreshToken, role: "SUPER_ADMIN" }, "Logged in");
     }
 
-    const user = await prisma.user.findUnique({ where: { email }, include: { client: true } });
+    const user = await prisma.user.findUnique({ where: { email }, include: { client: true, role: true } });
     if (!user || !user.isActive || !(await verifyPassword(user.passwordHash, password))) {
       return fail(res, 401, "Invalid credentials", "INVALID_CREDENTIALS");
     }
@@ -68,6 +68,9 @@ authRouter.post("/login", async (req, res, next) => {
     return ok(res, {
       accessToken, refreshToken, role: "CLIENT_USER",
       subscriptionStatus: status,
+      roleName: user.role.name,
+      permissions: user.role.permissionsJson,
+      isClientAdmin: user.isClientAdmin,
       mustChangePassword: user.mustChangePassword,
       onboardingCompleted: user.client.onboardingCompleted,
     }, "Logged in");
@@ -89,7 +92,7 @@ authRouter.post("/verify-otp", async (req, res, next) => {
     const isValid = await verifyLoginOtp(pending.sub, code);
     if (!isValid) return fail(res, 400, "Invalid or expired code", "INVALID_OTP");
 
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: pending.sub }, include: { client: true } });
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: pending.sub }, include: { client: true, role: true } });
     const { status } = computeEffectiveStatus({ subscriptionExpiry: user.client.subscriptionExpiry });
 
     const accessToken = signAccessToken({
@@ -104,6 +107,9 @@ authRouter.post("/verify-otp", async (req, res, next) => {
     return ok(res, {
       accessToken, refreshToken, role: "CLIENT_USER",
       subscriptionStatus: status,
+      roleName: user.role.name,
+      permissions: user.role.permissionsJson,
+      isClientAdmin: user.isClientAdmin,
       mustChangePassword: user.mustChangePassword,
       onboardingCompleted: user.client.onboardingCompleted,
     }, "Logged in");

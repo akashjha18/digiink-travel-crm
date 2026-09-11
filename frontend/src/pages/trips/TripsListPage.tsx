@@ -89,6 +89,14 @@ export function TripsListPage() {
     return filteredTrips.slice(start, start + rowsPerPage);
   }, [filteredTrips, page, rowsPerPage]);
 
+  const stats = useMemo(() => {
+    const total = trips.length;
+    const scheduled = trips.filter((t) => t.status === "SCHEDULED").length;
+    const inTransit = trips.filter((t) => t.status === "IN_PROGRESS").length;
+    const completed = trips.filter((t) => t.status === "COMPLETED").length;
+    return { total, scheduled, inTransit, completed };
+  }, [trips]);
+
   return (
     <Box sx={{ p: { xs: 2.5, md: 4.5 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
       {/* Top Header */}
@@ -98,7 +106,7 @@ export function TripsListPage() {
         justifyContent="space-between"
         alignItems={{ xs: "flex-start", sm: "center" }}
         gap={2}
-        mb={3.5}
+        mb={3}
       >
         <Box>
           <Box display="flex" alignItems="center" gap={1.5}>
@@ -106,15 +114,16 @@ export function TripsListPage() {
               Trips Dispatch
             </Typography>
             <Chip
-              label={`${trips.length} Active Trips`}
+              label={`${trips.length} Dispatches`}
               size="small"
               icon={<RouteRoundedIcon style={{ fontSize: 15 }} />}
               sx={{
-                bgcolor: "#eff6ff",
-                color: "#2563eb",
+                bgcolor: "rgba(2, 132, 199, 0.1)",
+                color: "#0284c7",
                 fontWeight: 800,
                 fontSize: "0.72rem",
                 borderRadius: "6px",
+                border: "1px solid rgba(2, 132, 199, 0.2)",
               }}
             />
           </Box>
@@ -122,6 +131,110 @@ export function TripsListPage() {
             Live operational fleet movements, driver assignments, and transit routes.
           </Typography>
         </Box>
+      </Box>
+
+      {/* KPI Stats Strip */}
+      <Box
+        display="grid"
+        gridTemplateColumns={{ xs: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }}
+        gap={2}
+        mb={3}
+      >
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(2, 132, 199, 0.1)", color: "#0284c7", borderRadius: 2.5, width: 44, height: 44 }}>
+            <RouteRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Total Dispatches
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.total}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", borderRadius: 2.5, width: 44, height: 44 }}>
+            <CalendarMonthRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Scheduled
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.scheduled}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(249, 115, 22, 0.1)", color: "#f97316", borderRadius: 2.5, width: 44, height: 44 }}>
+            <DirectionsCarRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              In Transit
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.inTransit}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(16, 185, 129, 0.1)", color: "#10b981", borderRadius: 2.5, width: 44, height: 44 }}>
+            <BadgeRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Completed
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.completed}
+            </Typography>
+          </Box>
+        </Paper>
       </Box>
 
       {/* Filter and Search Bar */}

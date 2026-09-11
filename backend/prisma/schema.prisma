@@ -98,10 +98,19 @@ model Client {
   automationLogs  AutomationLog[]
   whatsAppConfig      WhatsAppConfig?
   whatsAppMessages    WhatsAppMessage[]
+  whatsAppTemplates   WhatsAppTemplate[]
   customFieldDefinitions CustomFieldDefinition[]
   customFieldValues      CustomFieldValue[]
   itineraries            Itinerary[]
   tourTemplates          TourTemplate[]
+  suppliers              Supplier[]
+  bookingCostItems       BookingCostItem[]
+  supplierPayments       SupplierPayment[]
+  hotelVouchers          HotelVoucher[]
+  dutySlips              DutySlip[]
+  dutySlipExpenses       DutySlipExpense[]
+  bookingTravelers       BookingTraveler[]
+  bookingDocuments       BookingDocument[]
 
   @@index([subscriptionStatus])
   @@map("clients")
@@ -435,6 +444,7 @@ model Booking {
   status        BookingStatus @default(CONFIRMED)
   voucherPdfUrl String?
   paymentDueDate DateTime?
+  docShareToken String?       @unique @map("doc_share_token")
   branchId      String?
   branch        Branch?       @relation(fields: [branchId], references: [id])
   driverId      String?
@@ -447,8 +457,14 @@ model Booking {
   trip     Trip?
   payments Payment[]
   invoices Invoice[]
+  costItems BookingCostItem[]
+  supplierPayments SupplierPayment[]
+  hotelVouchers HotelVoucher[]
+  travelers     BookingTraveler[]
+  documents     BookingDocument[]
 
   @@index([clientId])
+  @@index([docShareToken])
   @@map("bookings")
 }
 
@@ -477,6 +493,8 @@ model Trip {
   status         TripStatus @default(SCHEDULED)
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
+
+  dutySlip       DutySlip?
 
   @@index([clientId])
   @@map("trips")
@@ -674,15 +692,36 @@ model WhatsAppConfig {
   id                     String   @id @default(cuid())
   clientId               String   @unique
   client                 Client   @relation(fields: [clientId], references: [id])
+  provider               String   @default("QUICK_LINK") // QUICK_LINK (wa.me) | META_CLOUD | SIMULATED
   phoneNumberId          String?
   businessAccountId      String?
   accessTokenEncrypted   String?
   webhookVerifyToken     String?
+  autoWelcomeEnabled     Boolean  @default(false)
+  autoItineraryShare     Boolean  @default(false)
+  autoCabDispatch        Boolean  @default(false)
   isActive               Boolean  @default(false)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
   @@map("whatsapp_configs")
+}
+
+model WhatsAppTemplate {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+  name        String
+  category    String   // ITINERARY_SHARE | ENQUIRY_WELCOME | CAB_DISPATCH | BOOKING_CONFIRMATION | PAYMENT_REMINDER | CUSTOM
+  body        String   @db.Text
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([category])
+  @@map("whatsapp_templates")
 }
 
 model WhatsAppMessage {
@@ -849,5 +888,355 @@ model ItineraryPricingTier {
 
   @@index([itineraryId])
   @@map("itinerary_pricing_tiers")
+}
+
+// ==========================================
+// PHASE 3: SUPPLIERS, COSTING & VOUCHERS
+// ==========================================
+
+enum SupplierType {
+  HOTEL
+  TRANSPORTER
+  TOUR_GUIDE
+  ACTIVITY_PROVIDER
+  VISA_AGENT
+  OTHER
+}
+
+enum CostItemType {
+  HOTEL
+  TRANSPORT
+  ACTIVITY
+  GUIDE
+  FLIGHT
+  VISA
+  MISC
+}
+
+enum SupplierPaymentMode {
+  UPI
+  BANK_TRANSFER
+  CASH
+  CHEQUE
+  CREDIT_CARD
+}
+
+enum SupplierPaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+}
+
+enum MealPlan {
+  EP
+  CP
+  MAP
+  AP
+}
+
+enum VoucherStatus {
+  ISSUED
+  CONFIRMED
+  CANCELLED
+}
+
+model Supplier {
+  id             String       @id @default(cuid())
+  clientId       String       @map("client_id")
+  name           String
+  type           SupplierType @default(HOTEL)
+  contactPerson  String?      @map("contact_person")
+  phone          String?
+  whatsapp       String?
+  email          String?
+  city           String?
+  address        String?
+  starRating     Int?         @map("star_rating")
+  bankName       String?      @map("bank_name")
+  accountNumber  String?      @map("account_number")
+  ifscCode       String?      @map("ifsc_code")
+  upiId          String?      @map("upi_id")
+  notes          String?      @db.Text
+  isActive       Boolean      @default(true) @map("is_active")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  costItems      BookingCostItem[]
+  payments       SupplierPayment[]
+  vouchers       HotelVoucher[]
+
+  @@index([clientId])
+  @@index([type])
+  @@index([city])
+  @@map("suppliers")
+}
+
+model BookingCostItem {
+  id              String                @id @default(cuid())
+  clientId        String                @map("client_id")
+  bookingId       String                @map("booking_id")
+  supplierId      String?               @map("supplier_id")
+  itemType        CostItemType          @default(HOTEL) @map("item_type")
+  description     String
+  quantity        Int                   @default(1)
+  unitCostInPaise Int                   @map("unit_cost_in_paise")
+  totalCostInPaise Int                  @map("total_cost_in_paise")
+  paymentStatus   SupplierPaymentStatus @default(UNPAID) @map("payment_status")
+  notes           String?               @db.Text
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  client          Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  booking         Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  supplier        Supplier?             @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([bookingId])
+  @@index([supplierId])
+  @@map("booking_cost_items")
+}
+
+model SupplierPayment {
+  id             String              @id @default(cuid())
+  clientId       String              @map("client_id")
+  supplierId     String              @map("supplier_id")
+  bookingId      String?             @map("booking_id")
+  amountInPaise  Int                 @map("amount_in_paise")
+  paymentDate    DateTime            @default(now()) @map("payment_date")
+  mode           SupplierPaymentMode @default(UPI)
+  reference      String?
+  notes          String?             @db.Text
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  client         Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  supplier       Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  booking        Booking?            @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([supplierId])
+  @@index([bookingId])
+  @@map("supplier_payments")
+}
+
+model HotelVoucher {
+  id              String        @id @default(cuid())
+  clientId        String        @map("client_id")
+  bookingId       String        @map("booking_id")
+  supplierId      String?       @map("supplier_id")
+  voucherNumber   String        @unique @map("voucher_number")
+  hotelName       String        @map("hotel_name")
+  city            String?
+  checkInDate     DateTime      @map("check_in_date")
+  checkOutDate    DateTime      @map("check_out_date")
+  roomCategory    String?       @map("room_category")
+  numberOfRooms   Int           @default(1) @map("number_of_rooms")
+  mealPlan        MealPlan      @default(CP) @map("meal_plan")
+  guestNames      Json?         @map("guest_names")
+  specialRequests String?       @db.Text @map("special_requests")
+  status          VoucherStatus @default(ISSUED)
+  issuedAt        DateTime      @default(now()) @map("issued_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  client          Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  booking         Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  supplier        Supplier?     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([bookingId])
+  @@index([voucherNumber])
+  @@map("hotel_vouchers")
+}
+
+// ==========================================
+// PHASE 4: DRIVER MOBILE DUTY SLIP & DISPATCH
+// ==========================================
+
+enum DutySlipStatus {
+  GENERATED
+  DISPATCHED
+  STARTED
+  COMPLETED
+  BILLED
+  CANCELLED
+}
+
+enum DutyExpenseType {
+  TOLL
+  PARKING
+  STATE_TAX
+  FUEL
+  DRIVER_ALLOWANCE
+  MISC
+}
+
+model DutySlip {
+  id                    String          @id @default(cuid())
+  clientId              String          @map("client_id")
+  tripId                String          @unique @map("trip_id")
+  slipNumber            String          @unique @map("slip_number")
+  shareToken            String          @unique @map("share_token")
+
+  passengerName         String?         @map("passenger_name")
+  passengerPhone        String?         @map("passenger_phone")
+  pickupAddress         String?         @map("pickup_address")
+  dropAddress           String?         @map("drop_address")
+  reportingTime         DateTime?       @map("reporting_time")
+
+  driverName            String?         @map("driver_name")
+  driverPhone           String?         @map("driver_phone")
+  vehicleNumber         String?         @map("vehicle_number")
+  vehicleModel          String?         @map("vehicle_model")
+
+  startOdometer         Int?            @map("start_odometer")
+  endOdometer           Int?            @map("end_odometer")
+  totalKm               Int?            @map("total_km")
+
+  startTime             DateTime?       @map("start_time")
+  endTime               DateTime?       @map("end_time")
+  totalHours            Float?          @map("total_hours")
+
+  startOdoPhotoUrl      String?         @map("start_odo_photo_url")
+  endOdoPhotoUrl        String?         @map("end_odo_photo_url")
+
+  tollChargesInPaise    Int             @default(0) @map("toll_charges_in_paise")
+  parkingChargesInPaise Int             @default(0) @map("parking_charges_in_paise")
+  stateTaxInPaise       Int             @default(0) @map("state_tax_in_paise")
+  fuelChargesInPaise    Int             @default(0) @map("fuel_charges_in_paise")
+  driverAllowanceInPaise Int            @default(0) @map("driver_allowance_in_paise")
+  otherChargesInPaise   Int             @default(0) @map("other_charges_in_paise")
+  totalExpensesInPaise  Int             @default(0) @map("total_expenses_in_paise")
+
+  customerOtp           String?         @map("customer_otp")
+  otpVerified           Boolean         @default(false) @map("otp_verified")
+  customerSignature     String?         @db.Text @map("customer_signature")
+  customerRating        Int?            @map("customer_rating")
+  customerFeedback      String?         @db.Text @map("customer_feedback")
+
+  status                DutySlipStatus  @default(GENERATED)
+  notes                 String?         @db.Text
+  dispatchedAt          DateTime?       @map("dispatched_at")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+
+  client                Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  trip                  Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  expenses              DutySlipExpense[]
+
+  @@index([clientId])
+  @@index([tripId])
+  @@index([shareToken])
+  @@index([slipNumber])
+  @@map("duty_slips")
+}
+
+model DutySlipExpense {
+  id            String          @id @default(cuid())
+  clientId      String          @map("client_id")
+  dutySlipId    String          @map("duty_slip_id")
+  expenseType   DutyExpenseType @default(TOLL) @map("expense_type")
+  amountInPaise Int             @map("amount_in_paise")
+  receiptUrl    String?         @map("receipt_url")
+  notes         String?         @db.Text
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  client        Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  dutySlip      DutySlip        @relation(fields: [dutySlipId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([dutySlipId])
+  @@map("duty_slip_expenses")
+}
+
+// --- Phase 5: Document & Permit Vault and Passenger Manifest ---
+
+enum TravelerType {
+  ADULT
+  CHILD
+  INFANT
+}
+
+enum TravelerGender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum DocumentVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum DocumentCategory {
+  PASSPORT_FRONT
+  PASSPORT_BACK
+  AADHAAR_FRONT
+  AADHAAR_BACK
+  PAN_CARD
+  DRIVING_LICENSE
+  VISA
+  AIR_TICKET
+  TRAVEL_INSURANCE
+  VACCINATION_CERT
+  HOTEL_VOUCHER
+  PERMIT
+  OTHER
+}
+
+model BookingTraveler {
+  id              String          @id @default(cuid())
+  clientId        String          @map("client_id")
+  bookingId       String          @map("booking_id")
+  travelerType    TravelerType    @default(ADULT) @map("traveler_type")
+  fullName        String          @map("full_name")
+  gender          TravelerGender  @default(MALE)
+  dateOfBirth     DateTime?       @map("date_of_birth")
+  nationality     String?         @default("Indian")
+  passportNumber  String?         @map("passport_number")
+  passportExpiry  DateTime?       @map("passport_expiry")
+  idType          String?         @map("id_type")
+  idNumber        String?         @map("id_number")
+  foodPreference  String?         @map("food_preference")
+  specialRequests String?         @db.Text @map("special_requests")
+  isLeadPassenger Boolean         @default(false) @map("is_lead_passenger")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  client          Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  booking         Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  documents       BookingDocument[]
+
+  @@index([clientId])
+  @@index([bookingId])
+  @@map("booking_travelers")
+}
+
+model BookingDocument {
+  id                 String                     @id @default(cuid())
+  clientId           String                     @map("client_id")
+  bookingId          String                     @map("booking_id")
+  travelerId         String?                    @map("traveler_id")
+  category           DocumentCategory           @default(OTHER)
+  title              String
+  fileUrl            String                     @db.LongText @map("file_url")
+  fileType           String?                    @map("file_type")
+  fileSize           Int?                       @map("file_size")
+  verificationStatus DocumentVerificationStatus @default(PENDING) @map("verification_status")
+  rejectionReason    String?                    @db.Text @map("rejection_reason")
+  uploadedBy         String?                    @map("uploaded_by")
+  notes              String?                    @db.Text
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+
+  client             Client                     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  booking            Booking                    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  traveler           BookingTraveler?           @relation(fields: [travelerId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([bookingId])
+  @@index([travelerId])
+  @@map("booking_documents")
 }
 

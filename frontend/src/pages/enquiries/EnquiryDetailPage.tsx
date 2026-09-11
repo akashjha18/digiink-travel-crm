@@ -36,7 +36,9 @@ import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
 import MapRoundedIcon from "@mui/icons-material/MapRounded";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import { apiClient } from "../../api/client";
+import { WhatsAppModal } from "../../components/whatsapp/WhatsAppModal";
 
 const STAGES = ["NEW", "CONTACTED", "QUOTED", "NEGOTIATION", "WON", "LOST"];
 
@@ -71,6 +73,7 @@ export function EnquiryDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [whatsAppOpen, setWhatsAppOpen] = useState(false);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [bookingForm, setBookingForm] = useState({
@@ -296,6 +299,23 @@ export function EnquiryDetailPage() {
           </Box>
 
           <Box display="flex" gap={1.25} flexWrap="wrap">
+            <Button
+              variant="contained"
+              startIcon={<WhatsAppIcon />}
+              onClick={() => setWhatsAppOpen(true)}
+              sx={{
+                bgcolor: "#25d366",
+                "&:hover": { bgcolor: "#1ebe5d" },
+                borderRadius: 2.5,
+                px: 2,
+                py: 1,
+                textTransform: "none",
+                fontWeight: 700,
+                boxShadow: "0 4px 14px rgba(37, 211, 102, 0.25)",
+              }}
+            >
+              WhatsApp
+            </Button>
             <Button
               variant="outlined"
               color="primary"
@@ -731,6 +751,23 @@ export function EnquiryDetailPage() {
         </DialogContent>
         <DialogActions sx={{ p: 2 }}><Button onClick={() => setBookingOpen(false)} disabled={bookingLoading}>Cancel</Button><Button variant="contained" onClick={convertToBooking} disabled={bookingLoading || !bookingForm.pickup.trim() || !bookingForm.drop.trim() || !bookingForm.fare} startIcon={bookingLoading ? <CircularProgress size={16} /> : <EventAvailableRoundedIcon />}>Confirm Booking</Button></DialogActions>
       </Dialog>
+
+      {/* WhatsApp Modal */}
+      {enquiry && (
+        <WhatsAppModal
+          open={whatsAppOpen}
+          onClose={() => setWhatsAppOpen(false)}
+          initialPhone={enquiry.customer?.phone || ""}
+          customerName={enquiry.customer?.name || ""}
+          enquiryId={id}
+          defaultCategory="ENQUIRY_WELCOME"
+          variables={{
+            destination: enquiry.destination || "",
+            trip_title: enquiry.destination || "your upcoming trip",
+          }}
+          onSuccess={load}
+        />
+      )}
     </Box>
   );
 }

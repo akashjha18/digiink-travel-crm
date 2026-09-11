@@ -230,6 +230,14 @@ export function VehiclesPage() {
     return filteredVehicles.slice(start, start + rowsPerPage);
   }, [filteredVehicles, page, rowsPerPage]);
 
+  const stats = useMemo(() => {
+    const total = vehicles.length;
+    const withDriver = vehicles.filter((v) => v.assignedDriver).length;
+    const documentAlerts = alerts.length;
+    const activeCatalog = vehicles.filter((v) => v.catalogStatus === "ACTIVE").length;
+    return { total, withDriver, documentAlerts, activeCatalog };
+  }, [vehicles, alerts]);
+
   return (
     <Box sx={{ p: { xs: 2.5, md: 4.5 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
       {/* Top Header */}
@@ -239,7 +247,7 @@ export function VehiclesPage() {
         justifyContent="space-between"
         alignItems={{ xs: "flex-start", sm: "center" }}
         gap={2}
-        mb={3.5}
+        mb={3}
       >
         <Box>
           <Box display="flex" alignItems="center" gap={1.5}>
@@ -251,11 +259,12 @@ export function VehiclesPage() {
               size="small"
               icon={<LocalShippingRoundedIcon style={{ fontSize: 14 }} />}
               sx={{
-                bgcolor: "#eff6ff",
-                color: "#2563eb",
+                bgcolor: "rgba(2, 132, 199, 0.1)",
+                color: "#0284c7",
                 fontWeight: 800,
                 fontSize: "0.72rem",
                 borderRadius: "6px",
+                border: "1px solid rgba(2, 132, 199, 0.2)",
               }}
             />
           </Box>
@@ -269,18 +278,125 @@ export function VehiclesPage() {
           startIcon={<AddRoundedIcon />}
           onClick={() => setOpen(true)}
           sx={{
-            bgcolor: "#2563eb",
+            background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
             borderRadius: 2.5,
-            px: 2.5,
+            px: 2.75,
             py: 1,
             textTransform: "none",
-            fontWeight: 700,
-            boxShadow: "0 4px 14px rgba(37, 99, 235, 0.25)",
-            "&:hover": { bgcolor: "#1d4ed8" },
+            fontWeight: 800,
+            boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)",
+            "&:hover": {
+              background: "linear-gradient(135deg, #0369a1 0%, #075985 100%)",
+              transform: "translateY(-1px)",
+            },
           }}
         >
           Add Vehicle
         </Button>
+      </Box>
+
+      {/* KPI Stats Strip */}
+      <Box
+        display="grid"
+        gridTemplateColumns={{ xs: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }}
+        gap={2}
+        mb={3}
+      >
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(2, 132, 199, 0.1)", color: "#0284c7", borderRadius: 2.5, width: 44, height: 44 }}>
+            <LocalShippingRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Total Fleet
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.total}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(16, 185, 129, 0.1)", color: "#10b981", borderRadius: 2.5, width: 44, height: 44 }}>
+            <BadgeRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Driver Assigned
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.withDriver}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(249, 115, 22, 0.1)", color: "#f97316", borderRadius: 2.5, width: 44, height: 44 }}>
+            <DirectionsCarRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Catalog Active
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.activeCatalog}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(239, 68, 68, 0.1)", color: "#ef4444", borderRadius: 2.5, width: 44, height: 44 }}>
+            <WarningAmberRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Renewal Alerts
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color={stats.documentAlerts > 0 ? "#ef4444" : "#0f172a"}>
+              {stats.documentAlerts}
+            </Typography>
+          </Box>
+        </Paper>
       </Box>
 
       {/* Compliance / Expiry Alert Banner */}

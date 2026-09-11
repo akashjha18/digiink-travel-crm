@@ -34,9 +34,11 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import MapRoundedIcon from "@mui/icons-material/MapRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 
 import { listItineraries, deleteItinerary, duplicateItinerary } from "../../api/itineraries";
 import { Itinerary } from "../../types/itinerary";
+import { WhatsAppModal } from "../../components/whatsapp/WhatsAppModal";
 
 const STATUS_COLORS: Record<string, "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning"> = {
   DRAFT: "default",
@@ -54,6 +56,7 @@ export function ItinerariesListPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [whatsAppModalItinerary, setWhatsAppModalItinerary] = useState<Itinerary | null>(null);
 
   const { data: itineraries, isLoading, isError } = useQuery<Itinerary[]>({
     queryKey: ["itineraries", statusFilter],
@@ -90,8 +93,16 @@ export function ItinerariesListPage() {
     );
   });
 
+  const totalCount = (itineraries || []).length;
+  const acceptedCount = (itineraries || []).filter((i) => i.status === "ACCEPTED").length;
+  const sentCount = (itineraries || []).filter((i) => i.status === "SENT").length;
+  const avgDays =
+    totalCount > 0
+      ? Math.round((itineraries || []).reduce((acc, i) => acc + (i.totalDays || 0), 0) / totalCount)
+      : 0;
+
   return (
-    <Box sx={{ p: { xs: 2, md: 3 } }}>
+    <Box sx={{ p: { xs: 2.5, md: 4 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
       {/* Header */}
       <Box
         sx={{
@@ -100,36 +111,130 @@ export function ItinerariesListPage() {
           justifyContent: "space-between",
           alignItems: { xs: "flex-start", sm: "center" },
           gap: 2,
-          mb: 3,
+          mb: 3.5,
         }}
       >
         <Box>
-          <Typography variant="h5" fontWeight={700} sx={{ color: "#0f172a" }}>
-            Day-Wise Itineraries & Proposals
-          </Typography>
-          <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
-            Craft branded, interactive travel itineraries and send live links directly to travelers.
-          </Typography>
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <Box
+              sx={{
+                width: 44,
+                height: 44,
+                borderRadius: "12px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "linear-gradient(135deg, #0284c7 0%, #0c4a6e 100%)",
+                boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)",
+              }}
+            >
+              <MapRoundedIcon sx={{ color: "#fff", fontSize: 24 }} />
+            </Box>
+            <Box>
+              <Typography variant="h4" fontWeight={900} sx={{ color: "#0f172a", letterSpacing: "-0.03em" }}>
+                Day-Wise Itineraries
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Craft branded, interactive travel itineraries and send live links directly to travelers.
+              </Typography>
+            </Box>
+          </Box>
         </Box>
 
-        <Button
-          variant="contained"
-          startIcon={<AddRoundedIcon />}
-          onClick={() => navigate("/app/itineraries/new")}
-          sx={{
-            bgcolor: "#2563eb",
-            textTransform: "none",
-            fontWeight: 600,
-            borderRadius: 2,
-            px: 2.5,
-            py: 1,
-            boxShadow: "0 4px 12px rgba(37, 99, 235, 0.25)",
-            "&:hover": { bgcolor: "#1d4ed8" },
-          }}
-        >
-          Create Itinerary
-        </Button>
+        <Box display="flex" alignItems="center" gap={1.5}>
+          <Chip
+            label={`${totalCount} Total Proposals`}
+            size="small"
+            sx={{
+              bgcolor: "#e0f2fe",
+              color: "#0369a1",
+              fontWeight: 800,
+              fontSize: "0.75rem",
+              borderRadius: "8px",
+            }}
+          />
+          <Button
+            variant="contained"
+            startIcon={<AddRoundedIcon />}
+            onClick={() => navigate("/app/itineraries/new")}
+            sx={{
+              background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+              boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)",
+              fontWeight: 700,
+              borderRadius: 2.5,
+              textTransform: "none",
+              px: 2.5,
+              py: 1,
+            }}
+          >
+            Create Itinerary
+          </Button>
+        </Box>
       </Box>
+
+      {/* Metric Cards Strip */}
+      <Grid container spacing={2.5} mb={3.5}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0", bgcolor: "#ffffff" }}>
+            <CardContent sx={{ p: 2.25 }}>
+              <Typography variant="caption" fontWeight={700} color="text.secondary" textTransform="uppercase">
+                Total Proposals
+              </Typography>
+              <Typography variant="h4" fontWeight={900} color="#0f172a">
+                {totalCount}
+              </Typography>
+              <Typography variant="caption" color="#0284c7" fontWeight={600}>
+                Trip plans designed
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0", bgcolor: "#ffffff" }}>
+            <CardContent sx={{ p: 2.25 }}>
+              <Typography variant="caption" fontWeight={700} color="text.secondary" textTransform="uppercase">
+                Accepted Deals
+              </Typography>
+              <Typography variant="h4" fontWeight={900} color="#10b981">
+                {acceptedCount}
+              </Typography>
+              <Typography variant="caption" color="#10b981" fontWeight={600}>
+                Ready for booking
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0", bgcolor: "#ffffff" }}>
+            <CardContent sx={{ p: 2.25 }}>
+              <Typography variant="caption" fontWeight={700} color="text.secondary" textTransform="uppercase">
+                Sent to Client
+              </Typography>
+              <Typography variant="h4" fontWeight={900} color="#0284c7">
+                {sentCount}
+              </Typography>
+              <Typography variant="caption" color="#0284c7" fontWeight={600}>
+                Under client review
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0", bgcolor: "#ffffff" }}>
+            <CardContent sx={{ p: 2.25 }}>
+              <Typography variant="caption" fontWeight={700} color="text.secondary" textTransform="uppercase">
+                Avg. Duration
+              </Typography>
+              <Typography variant="h4" fontWeight={900} color="#f97316">
+                {avgDays} Days
+              </Typography>
+              <Typography variant="caption" color="#f97316" fontWeight={600}>
+                Standard tour length
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Filter & Search Bar */}
       <Card
@@ -347,6 +452,16 @@ export function ItinerariesListPage() {
                 </Button>
 
                 <Box sx={{ display: "flex", gap: 0.5 }}>
+                  <Tooltip title="Send Itinerary on WhatsApp">
+                    <IconButton
+                      size="small"
+                      onClick={() => setWhatsAppModalItinerary(itn)}
+                      sx={{ color: "#25d366", "&:hover": { bgcolor: "rgba(37,211,102,0.12)" } }}
+                    >
+                      <WhatsAppIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+
                   <Tooltip title="Copy Shareable Traveler Link">
                     <IconButton size="small" onClick={() => handleCopyLink(itn.shareSlug)} sx={{ color: "#475569" }}>
                       <ShareRoundedIcon fontSize="small" />
@@ -418,9 +533,27 @@ export function ItinerariesListPage() {
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
         <Alert onClose={() => setCopiedSlug(null)} severity="success" sx={{ width: "100%" }}>
-          Shareable Client Link copied to clipboard!
+          Public proposal link copied to clipboard!
         </Alert>
       </Snackbar>
+
+      {/* WhatsApp Share Modal */}
+      {whatsAppModalItinerary && (
+        <WhatsAppModal
+          open={!!whatsAppModalItinerary}
+          onClose={() => setWhatsAppModalItinerary(null)}
+          initialPhone={whatsAppModalItinerary.customer?.phone || ""}
+          customerName={whatsAppModalItinerary.customer?.name || ""}
+          enquiryId={whatsAppModalItinerary.enquiryId || undefined}
+          defaultCategory="ITINERARY_SHARE"
+          variables={{
+            trip_title: whatsAppModalItinerary.tripTitle,
+            destination: whatsAppModalItinerary.destination,
+            duration: `${whatsAppModalItinerary.totalDays} Days / ${whatsAppModalItinerary.totalNights} Nights`,
+            itinerary_link: `${window.location.origin}/view/${whatsAppModalItinerary.shareSlug}`,
+          }}
+        />
+      )}
     </Box>
   );
 }

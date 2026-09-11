@@ -3,12 +3,28 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   Box, Typography, Paper, Chip, Button, Select, MenuItem, Divider,
   TextField, Table, TableHead, TableRow, TableCell, TableBody,
-  Dialog, DialogTitle, DialogContent, DialogActions, Alert,
+  Dialog, DialogTitle, DialogContent, DialogActions, Alert, Avatar, IconButton, Tooltip
 } from "@mui/material";
+import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
+import ConfirmationNumberRoundedIcon from "@mui/icons-material/ConfirmationNumberRounded";
+import PrintRoundedIcon from "@mui/icons-material/PrintRounded";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
+import LuggageRoundedIcon from "@mui/icons-material/LuggageRounded";
+import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
+import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
+import CurrencyRupeeRoundedIcon from "@mui/icons-material/CurrencyRupeeRounded";
+import DirectionsCarRoundedIcon from "@mui/icons-material/DirectionsCarRounded";
+import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import { apiClient } from "../../api/client";
+import { BookingCostingSection } from "../../components/bookings/BookingCostingSection";
+import { HotelVouchersSection } from "../../components/bookings/HotelVouchersSection";
+import { BookingDocumentVaultSection } from "../../components/bookings/BookingDocumentVaultSection";
 
-const STATUS_COLOR: Record<string, "info" | "warning" | "success" | "error"> = {
-  CONFIRMED: "info", IN_PROGRESS: "warning", COMPLETED: "success", CANCELLED: "error",
+const STATUS_CONFIG: Record<string, { bg: string; color: string }> = {
+  CONFIRMED: { bg: "#eff6ff", color: "#1d4ed8" },
+  IN_PROGRESS: { bg: "#fff7ed", color: "#c2410c" },
+  COMPLETED: { bg: "#f0fdf4", color: "#15803d" },
+  CANCELLED: { bg: "#fef2f2", color: "#b91c1c" },
 };
 
 export function BookingDetailPage() {
@@ -26,40 +42,250 @@ export function BookingDetailPage() {
     load();
   }
 
-  if (!booking) return <Box p={4}>Loading…</Box>;
+  if (!booking) {
+    return (
+      <Box sx={{ p: 4, minHeight: "80vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Typography variant="body1" color="text.secondary" fontWeight={600}>
+          Loading booking details...
+        </Typography>
+      </Box>
+    );
+  }
+
+  const currentStatusConfig = STATUS_CONFIG[booking.status] || { bg: "#f1f5f9", color: "#475569" };
 
   return (
-    <Box p={4}>
+    <Box sx={{ p: { xs: 2.5, md: 4 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
       <style>{`@media print { .no-print { display: none !important; } }`}</style>
 
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2} className="no-print">
-        <Box>
-          <Typography variant="h4">Booking</Typography>
-          <Typography color="text.secondary">{booking.customer?.name} · Quotation v{booking.quotation?.version}</Typography>
+      {/* Top Meta Bar */}
+      <Box display="flex" alignItems="center" gap={1.5} mb={2.5} className="no-print">
+        <Tooltip title="Back to Bookings">
+          <IconButton
+            onClick={() => navigate("/app/bookings")}
+            size="small"
+            sx={{
+              bgcolor: "#ffffff",
+              border: "1px solid #e2e8f0",
+              borderRadius: 2,
+              "&:hover": { bgcolor: "#f1f5f9" },
+            }}
+          >
+            <ArrowBackRoundedIcon fontSize="small" sx={{ color: "#475569" }} />
+          </IconButton>
+        </Tooltip>
+        <Typography variant="caption" color="text.secondary" fontWeight={700}>
+          BOOKING / #{id?.slice(-6).toUpperCase()}
+        </Typography>
+      </Box>
+
+      {/* Header */}
+      <Box
+        display="flex"
+        flexDirection={{ xs: "column", sm: "row" }}
+        justifyContent="space-between"
+        alignItems={{ xs: "flex-start", sm: "center" }}
+        gap={2}
+        mb={3.5}
+        className="no-print"
+      >
+        <Box display="flex" alignItems="center" gap={1.75}>
+          <Avatar
+            sx={{
+              width: 48,
+              height: 48,
+              background: "linear-gradient(135deg, #0284c7 0%, #0c4a6e 100%)",
+              boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)",
+            }}
+          >
+            <ConfirmationNumberRoundedIcon sx={{ color: "#fff", fontSize: 26 }} />
+          </Avatar>
+          <Box>
+            <Box display="flex" alignItems="center" gap={1.5}>
+              <Typography variant="h4" fontWeight={900} sx={{ color: "#0f172a", letterSpacing: "-0.03em" }}>
+                Booking Overview
+              </Typography>
+              <Chip
+                label={booking.status.replace("_", " ")}
+                sx={{
+                  bgcolor: currentStatusConfig.bg,
+                  color: currentStatusConfig.color,
+                  fontWeight: 800,
+                  fontSize: "0.75rem",
+                  borderRadius: "8px",
+                }}
+              />
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              Customer: <strong>{booking.customer?.name}</strong> · Quotation v{booking.quotation?.version || "1"}
+            </Typography>
+          </Box>
         </Box>
-        <Chip label={booking.status.replace("_", " ")} color={STATUS_COLOR[booking.status]} />
+
+        <Box display="flex" flexWrap="wrap" gap={1.5} alignItems="center">
+          <Select
+            size="small"
+            value={booking.status}
+            onChange={(e) => updateStatus(e.target.value)}
+            sx={{
+              bgcolor: "#ffffff",
+              borderRadius: 2,
+              fontSize: "0.82rem",
+              fontWeight: 700,
+              minWidth: 150,
+            }}
+          >
+            {["CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((s) => (
+              <MenuItem key={s} value={s} sx={{ fontSize: "0.82rem", fontWeight: 600 }}>
+                {s.replace("_", " ")}
+              </MenuItem>
+            ))}
+          </Select>
+
+          <Button
+            variant="outlined"
+            startIcon={<PrintRoundedIcon />}
+            onClick={() => window.print()}
+            sx={{
+              bgcolor: "#ffffff",
+              borderColor: "#e2e8f0",
+              color: "#334155",
+              fontWeight: 700,
+              borderRadius: 2,
+              textTransform: "none",
+            }}
+          >
+            Print Voucher
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<EditRoundedIcon />}
+            onClick={() => navigate(`/app/bookings/${id}/edit`)}
+            sx={{
+              bgcolor: "#ffffff",
+              borderColor: "#e2e8f0",
+              color: "#334155",
+              fontWeight: 700,
+              borderRadius: 2,
+              textTransform: "none",
+            }}
+          >
+            Edit Booking
+          </Button>
+
+          {booking.trip && (
+            <Button
+              variant="contained"
+              startIcon={<LuggageRoundedIcon />}
+              onClick={() => navigate(`/app/trips/${booking.trip.id}`)}
+              sx={{
+                background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                fontWeight: 700,
+                borderRadius: 2,
+                textTransform: "none",
+              }}
+            >
+              Manage Trip
+            </Button>
+          )}
+        </Box>
       </Box>
 
-      <Box display="flex" gap={2} alignItems="center" mb={3} className="no-print">
-        <Select size="small" value={booking.status} onChange={(e) => updateStatus(e.target.value)}>
-          {["CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((s) => <MenuItem key={s} value={s}>{s.replace("_", " ")}</MenuItem>)}
-        </Select>
-        <Button variant="outlined" onClick={() => window.print()}>Print Voucher</Button>
-        <Button variant="outlined" onClick={() => navigate(`/app/bookings/${id}/edit`)}>Edit Booking</Button>
-        {booking.trip && <Button variant="outlined" onClick={() => navigate(`/app/trips/${booking.trip.id}`)}>Manage Trip</Button>}
-      </Box>
+      {/* Booking Voucher Card */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: { xs: 2.5, md: 3.5 },
+          maxWidth: 780,
+          borderRadius: 3,
+          border: "1px solid #e2e8f0",
+          bgcolor: "#ffffff",
+          mb: 3,
+        }}
+      >
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h6" fontWeight={800} color="#0f172a">
+            Official Travel Voucher
+          </Typography>
+          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+            Created on {new Date(booking.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+          </Typography>
+        </Box>
+        <Divider sx={{ my: 1.5, borderColor: "#f1f5f9" }} />
 
-      <Paper sx={{ p: 4, maxWidth: 700 }}>
-        <Typography variant="h5" gutterBottom>Booking Voucher</Typography>
-        <Typography color="text.secondary" gutterBottom>Created {new Date(booking.createdAt).toLocaleDateString()}</Typography>
-        <Divider sx={{ my: 2 }} />
-        <Typography><b>Customer:</b> {booking.customer?.name} ({booking.customer?.phone})</Typography>
-        <Typography><b>Travel dates:</b> {booking.travelStart ? new Date(booking.travelStart).toLocaleDateString() : "TBD"} — {booking.travelEnd ? new Date(booking.travelEnd).toLocaleDateString() : "TBD"}</Typography>
-        <Typography><b>Amount:</b> ₹{(booking.amountInPaise / 100).toLocaleString()}</Typography>
-        <Typography><b>Driver:</b> {booking.driver?.name ?? "Not yet assigned"}</Typography>
-        <Typography><b>Vehicle:</b> {booking.vehicle?.registrationNumber ?? "Not yet assigned"}</Typography>
+        <Box display="grid" gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }} gap={2} my={2}>
+          <Box display="flex" alignItems="center" gap={1.25}>
+            <Avatar sx={{ width: 36, height: 36, bgcolor: "#eff6ff", color: "#0284c7" }}>
+              <PersonRoundedIcon sx={{ fontSize: 20 }} />
+            </Avatar>
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">
+                Primary Passenger
+              </Typography>
+              <Typography variant="body2" fontWeight={800} color="#0f172a">
+                {booking.customer?.name} ({booking.customer?.phone || "No phone"})
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box display="flex" alignItems="center" gap={1.25}>
+            <Avatar sx={{ width: 36, height: 36, bgcolor: "#f0fdf4", color: "#16a34a" }}>
+              <CalendarTodayRoundedIcon sx={{ fontSize: 18 }} />
+            </Avatar>
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">
+                Travel Schedule
+              </Typography>
+              <Typography variant="body2" fontWeight={800} color="#0f172a">
+                {booking.travelStart ? new Date(booking.travelStart).toLocaleDateString() : "TBD"} —{" "}
+                {booking.travelEnd ? new Date(booking.travelEnd).toLocaleDateString() : "TBD"}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box display="flex" alignItems="center" gap={1.25}>
+            <Avatar sx={{ width: 36, height: 36, bgcolor: "#fef3c7", color: "#d97706" }}>
+              <CurrencyRupeeRoundedIcon sx={{ fontSize: 20 }} />
+            </Avatar>
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">
+                Total Booked Fare
+              </Typography>
+              <Typography variant="body1" fontWeight={900} color="#0284c7">
+                ₹{((booking.amountInPaise || 0) / 100).toLocaleString("en-IN")}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box display="flex" alignItems="center" gap={1.25}>
+            <Avatar sx={{ width: 36, height: 36, bgcolor: "#ede9fe", color: "#7c3aed" }}>
+              <DirectionsCarRoundedIcon sx={{ fontSize: 20 }} />
+            </Avatar>
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">
+                Fleet & Chauffeur
+              </Typography>
+              <Typography variant="body2" fontWeight={800} color="#0f172a">
+                {booking.vehicle?.registrationNumber || "No Vehicle"} · {booking.driver?.name || "No Driver"}
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
       </Paper>
 
+      <BookingCostingSection bookingId={id!} />
+      <HotelVouchersSection
+        bookingId={id!}
+        customerName={booking.customer?.name}
+        travelStart={booking.travelStart}
+        travelEnd={booking.travelEnd}
+      />
+      <BookingDocumentVaultSection
+        bookingId={id!}
+        booking={booking}
+        onRefresh={load}
+      />
       <PaymentsSection bookingId={id!} totalInPaise={booking.amountInPaise} />
       <InvoiceSection bookingId={id!} />
     </Box>

@@ -7,6 +7,7 @@ import { scopeTenant } from "../guards/tenant-scope.guard";
 import { requireEntitlement, enforceUsageLimit } from "../guards/entitlement.guard";
 import { requirePermission } from "../guards/rbac.guard";
 import { logTenantAction } from "../audit/audit.service";
+import { triggerAutoWelcome } from "../whatsapp/whatsapp.service";
 
 export const enquiriesRouter = Router();
 
@@ -147,6 +148,12 @@ enquiriesRouter.post("/", requirePermission("enquiries", "add"), async (req, res
     }
 
     await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "CREATE_ENQUIRY", target: enquiry.id });
+
+    // Trigger auto-welcome WhatsApp message asynchronously if enabled
+    triggerAutoWelcome(req.clientId!, enquiry.id).catch((err) => {
+      console.error("[enquiry:auto-welcome-error]", err);
+    });
+
     return ok(res, enquiry, "Enquiry created");
   } catch (err) {
     next(err);

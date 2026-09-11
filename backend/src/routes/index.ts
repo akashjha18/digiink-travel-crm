@@ -25,6 +25,13 @@ import { whatsappRouter, whatsappWebhookRouter } from "../whatsapp/whatsapp.cont
 import { customFieldsRouter } from "../custom-fields/custom-fields.controller";
 import { itinerariesRouter } from "../itineraries/itineraries.controller";
 import { publicItineraryRouter } from "../itineraries/public-itinerary.controller";
+import { suppliersRouter } from "../suppliers/suppliers.controller";
+import { costingRouter, supplierPaymentsRouter } from "../suppliers/costing.controller";
+import { voucherRouter, standaloneVoucherRouter } from "../suppliers/voucher.controller";
+import { dutySlipsRouter } from "../trips/duty-slips.controller";
+import { publicDutySlipRouter } from "../trips/public-duty-slip.controller";
+import { bookingVaultRouter } from "../documents/booking-vault.controller";
+import { publicVaultRouter } from "../documents/public-vault.controller";
 import { prisma } from "../db/prisma";
 import { z } from "zod";
 import multer from "multer";
@@ -84,6 +91,15 @@ apiRouter.use("/whatsapp", whatsappRouter);
 apiRouter.use("/custom-fields", customFieldsRouter);
 apiRouter.use("/itineraries", itinerariesRouter);
 apiRouter.use("/public/itinerary", publicItineraryRouter);
+apiRouter.use("/suppliers/payments", supplierPaymentsRouter);
+apiRouter.use("/suppliers", suppliersRouter);
+apiRouter.use("/bookings", costingRouter);
+apiRouter.use("/bookings", voucherRouter);
+apiRouter.use("/vouchers", standaloneVoucherRouter);
+apiRouter.use("/trips", dutySlipsRouter);
+apiRouter.use("/public/duty-slip", publicDutySlipRouter);
+apiRouter.use("/bookings", bookingVaultRouter);
+apiRouter.use("/public/vault", publicVaultRouter);
 
 apiRouter.get("/client/profile", authenticate, scopeTenant(), async (req, res, next) => {
   try {

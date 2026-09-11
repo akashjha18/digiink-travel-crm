@@ -172,11 +172,12 @@ export function RoleBuilderPage() {
               size="small"
               icon={<ShieldRoundedIcon style={{ fontSize: 14 }} />}
               sx={{
-                bgcolor: "#eff6ff",
-                color: "#2563eb",
+                bgcolor: "rgba(2, 132, 199, 0.1)",
+                color: "#0284c7",
                 fontWeight: 800,
                 fontSize: "0.72rem",
                 borderRadius: "6px",
+                border: "1px solid rgba(2, 132, 199, 0.2)",
               }}
             />
           </Box>
@@ -212,14 +213,17 @@ export function RoleBuilderPage() {
               setOpen(true);
             }}
             sx={{
-              bgcolor: "#2563eb",
+              background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
               borderRadius: 2.5,
-              px: 2.5,
+              px: 2.75,
               py: 1,
               textTransform: "none",
-              fontWeight: 700,
-              boxShadow: "0 4px 14px rgba(37, 99, 235, 0.25)",
-              "&:hover": { bgcolor: "#1d4ed8" },
+              fontWeight: 800,
+              boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)",
+              "&:hover": {
+                background: "linear-gradient(135deg, #0369a1 0%, #075985 100%)",
+                transform: "translateY(-1px)",
+              },
             }}
           >
             Create Custom Role

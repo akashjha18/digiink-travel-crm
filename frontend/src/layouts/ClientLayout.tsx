@@ -25,6 +25,7 @@ import BarChartRoundedIcon from "@mui/icons-material/BarChartRounded";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import AccountTreeRoundedIcon from "@mui/icons-material/AccountTreeRounded";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
+import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
 import DirectionsCarRoundedIcon from "@mui/icons-material/DirectionsCarRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
@@ -32,11 +33,13 @@ import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
 import GroupRoundedIcon from "@mui/icons-material/GroupRounded";
 import AdminPanelSettingsRoundedIcon from "@mui/icons-material/AdminPanelSettingsRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
+import FlightTakeoffRoundedIcon from "@mui/icons-material/FlightTakeoffRounded";
+import FiberManualRecordRoundedIcon from "@mui/icons-material/FiberManualRecordRounded";
 import { apiClient } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 import { SubscriptionBanner } from "../components/SubscriptionBanner";
 
-const DRAWER_WIDTH = 270;
+const DRAWER_WIDTH = 276;
 
 const NAV_GROUPS = [
   {
@@ -57,9 +60,10 @@ const NAV_GROUPS = [
     ],
   },
   {
-    title: "OPERATIONS & TRIPS",
+    title: "OPERATIONS & FLEET",
     items: [
       { to: "/app/bookings", label: "Bookings", feature: "bookings", permission: "bookings", icon: EventAvailableRoundedIcon },
+      { to: "/app/suppliers", label: "Suppliers & Costing", feature: null, permission: null, icon: StorefrontRoundedIcon },
       { to: "/app/trips", label: "Trips Dispatch", feature: "bookings", permission: "trips", icon: DirectionsCarRoundedIcon },
       { to: "/app/drivers", label: "Drivers", feature: "drivers", permission: "drivers", icon: BadgeRoundedIcon },
       { to: "/app/vehicles", label: "Fleet Vehicles", feature: "vehicles", permission: "vehicles", icon: LocalShippingRoundedIcon },
@@ -76,7 +80,7 @@ const NAV_GROUPS = [
     title: "WORKFLOWS & SCALE",
     items: [
       { to: "/app/automation", label: "Automations", feature: "workflow_automation", permission: "settings", icon: BoltRoundedIcon },
-      { to: "/app/whatsapp", label: "WhatsApp Suite", feature: "integrations", permission: "settings", icon: WhatsAppIcon },
+      { to: "/app/whatsapp", label: "WhatsApp Suite", feature: null, permission: null, icon: WhatsAppIcon },
       { to: "/app/branches", label: "Branches", feature: "multi_branch", permission: "settings", icon: AccountTreeRoundedIcon },
       { to: "/app/custom-fields", label: "Custom Fields", feature: "custom_modules", permission: "settings", icon: TuneRoundedIcon },
       { to: "/app/staff", label: "Staff Members", feature: null, permission: "staff", icon: GroupRoundedIcon },
@@ -91,12 +95,18 @@ export function ClientLayout() {
   const [me, setMe] = useState<any>(null);
 
   useEffect(() => {
-    apiClient.get("/client/profile").then(({ data }) => setClient(data.data)).catch((err) => {
-      console.error("Failed to load /client/profile", err);
-    });
-    apiClient.get("/client/me").then(({ data }) => setMe(data.data)).catch((err) => {
-      console.error("Failed to load /client/me", err);
-    });
+    apiClient
+      .get("/client/profile")
+      .then(({ data }) => setClient(data.data))
+      .catch((err) => {
+        console.error("Failed to load /client/profile", err);
+      });
+    apiClient
+      .get("/client/me")
+      .then(({ data }) => setMe(data.data))
+      .catch((err) => {
+        console.error("Failed to load /client/me", err);
+      });
   }, []);
 
   const entitlements = client?.plan?.entitlements ?? {};
@@ -111,7 +121,7 @@ export function ClientLayout() {
         sx={{
           width: DRAWER_WIDTH,
           flexShrink: 0,
-          background: "linear-gradient(180deg, #090d16 0%, #0f172a 60%, #111827 100%)",
+          background: "linear-gradient(180deg, #082f49 0%, #0c4a6e 42%, #0f172a 100%)",
           color: "#fff",
           display: "flex",
           flexDirection: "column",
@@ -120,6 +130,7 @@ export function ClientLayout() {
           left: 0,
           height: "100vh",
           borderRight: "1px solid rgba(255, 255, 255, 0.08)",
+          boxShadow: "4px 0 24px rgba(8, 47, 73, 0.15)",
           zIndex: 1200,
         }}
       >
@@ -131,44 +142,57 @@ export function ClientLayout() {
             gap: 1.75,
             px: 3,
             py: 3,
-            borderBottom: "1px solid rgba(255, 255, 255, 0.07)",
+            borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+            background: "rgba(0, 0, 0, 0.12)",
           }}
         >
           <Avatar
             src={me?.companyProfile?.logoUrl || client?.companyProfile?.logoUrl || undefined}
             sx={{
-              bgcolor: "#2563eb",
+              background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
               color: "#fff",
-              fontWeight: 800,
-              width: 42,
-              height: 42,
-              borderRadius: 2.5,
-              boxShadow: "0 4px 12px rgba(37, 99, 235, 0.35)",
+              fontWeight: 900,
+              fontSize: "1.1rem",
+              width: 44,
+              height: 44,
+              borderRadius: 2.75,
+              boxShadow: "0 6px 16px rgba(2, 132, 199, 0.35)",
+              border: "1.5px solid rgba(255, 255, 255, 0.2)",
             }}
           >
-            {!(me?.companyProfile?.logoUrl || client?.companyProfile?.logoUrl) && initial}
+            {!(me?.companyProfile?.logoUrl || client?.companyProfile?.logoUrl) && (
+              <FlightTakeoffRoundedIcon sx={{ fontSize: 22 }} />
+            )}
           </Avatar>
-          <Box minWidth={0}>
-            <Typography variant="subtitle1" fontWeight={800} noWrap sx={{ color: "#f8fafc", letterSpacing: "-0.01em" }}>
+          <Box minWidth={0} flexGrow={1}>
+            <Typography
+              variant="subtitle1"
+              fontWeight={900}
+              noWrap
+              sx={{ color: "#ffffff !important", letterSpacing: "-0.02em", fontSize: "0.98rem" }}
+            >
               {businessName}
             </Typography>
-            <Box display="flex" alignItems="center" gap={1} mt={0.25}>
+            <Box display="flex" alignItems="center" gap={1} mt={0.35}>
               <Chip
-                label={client?.plan?.name || "Client"}
+                label={client?.plan?.name || "Pro Partner"}
                 size="small"
                 sx={{
-                  height: 18,
-                  fontSize: "0.65rem",
+                  height: 19,
+                  fontSize: "0.68rem",
                   fontWeight: 800,
-                  bgcolor: "rgba(37, 99, 235, 0.2)",
-                  color: "#60a5fa",
-                  borderRadius: 1,
-                  border: "1px solid rgba(37, 99, 235, 0.3)",
+                  bgcolor: "rgba(56, 189, 248, 0.2)",
+                  color: "#38bdf8 !important",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(56, 189, 248, 0.4)",
                 }}
               />
-              <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.45)", fontSize: "0.7rem" }}>
-                CRM Hub
-              </Typography>
+              <Box display="flex" alignItems="center" gap={0.5}>
+                <FiberManualRecordRoundedIcon sx={{ fontSize: 8, color: "#10b981" }} />
+                <Typography variant="caption" sx={{ color: "#e2e8f0 !important", fontSize: "0.72rem", fontWeight: 700 }}>
+                  Live Ops
+                </Typography>
+              </Box>
             </Box>
           </Box>
         </Box>
@@ -177,7 +201,7 @@ export function ClientLayout() {
         <Box
           sx={{
             px: 2,
-            py: 2,
+            py: 2.25,
             flexGrow: 1,
             overflowY: "auto",
             "&::-webkit-scrollbar": { width: 4 },
@@ -196,17 +220,18 @@ export function ClientLayout() {
             if (visibleItems.length === 0) return null;
 
             return (
-              <Box key={group.title} sx={{ mb: 2.5 }}>
+              <Box key={group.title} sx={{ mb: 2.75 }}>
                 <Typography
                   variant="caption"
                   sx={{
-                    color: "rgba(255, 255, 255, 0.35)",
-                    letterSpacing: "0.08em",
+                    color: "#93c5fd !important",
+                    letterSpacing: "0.1em",
                     px: 1.5,
-                    mb: 1,
+                    mb: 1.1,
                     display: "block",
                     fontWeight: 800,
-                    fontSize: "0.68rem",
+                    fontSize: "0.72rem",
+                    textTransform: "uppercase",
                   }}
                 >
                   {group.title}
@@ -221,55 +246,66 @@ export function ClientLayout() {
                         component={NavLink}
                         to={item.to}
                         sx={{
-                          borderRadius: 2.25,
-                          mb: 0.5,
+                          borderRadius: 2.5,
+                          mb: 0.6,
                           py: 1,
                           px: 1.5,
-                          color: "rgba(255, 255, 255, 0.65)",
+                          color: "#e2e8f0 !important",
                           transition: "all 0.18s ease-in-out",
                           position: "relative",
-                          "&.active": {
-                            bgcolor: "rgba(37, 99, 235, 0.16)",
-                            color: "#ffffff",
-                            fontWeight: 700,
+                          "& .MuiListItemIcon-root": {
+                            color: "#cbd5e1 !important",
+                            minWidth: 34,
+                            transition: "color 0.15s ease",
+                          },
+                          "& .MuiListItemText-primary": {
+                            color: "#f1f5f9 !important",
+                            fontSize: "0.88rem",
+                            fontWeight: 600,
+                            letterSpacing: "-0.01em",
+                          },
+                          "&:hover": {
+                            bgcolor: "rgba(255, 255, 255, 0.1)",
+                            color: "#ffffff !important",
+                            transform: "translateX(2px)",
                             "& .MuiListItemIcon-root": {
-                              color: "#60a5fa",
+                              color: "#38bdf8 !important",
+                            },
+                            "& .MuiListItemText-primary": {
+                              color: "#ffffff !important",
+                              fontWeight: 700,
+                            },
+                          },
+                          "&.active": {
+                            bgcolor: "rgba(2, 132, 199, 0.35)",
+                            color: "#ffffff !important",
+                            border: "1px solid rgba(56, 189, 248, 0.4)",
+                            boxShadow: "0 2px 10px rgba(2, 132, 199, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.2)",
+                            "& .MuiListItemIcon-root": {
+                              color: "#38bdf8 !important",
+                            },
+                            "& .MuiListItemText-primary": {
+                              color: "#ffffff !important",
+                              fontWeight: 800,
                             },
                             "&::before": {
                               content: '""',
                               position: "absolute",
                               left: 0,
-                              top: "18%",
-                              bottom: "18%",
+                              top: "14%",
+                              bottom: "14%",
                               width: 3.5,
                               borderRadius: "0 4px 4px 0",
-                              bgcolor: "#3b82f6",
-                              boxShadow: "0 0 10px #3b82f6",
+                              bgcolor: "#38bdf8",
+                              boxShadow: "0 0 12px #38bdf8",
                             },
-                          },
-                          "&:hover": {
-                            bgcolor: "rgba(255, 255, 255, 0.06)",
-                            color: "#f8fafc",
                           },
                         }}
                       >
-                        <ListItemIcon
-                          sx={{
-                            minWidth: 34,
-                            color: "inherit",
-                            transition: "color 0.15s ease",
-                          }}
-                        >
+                        <ListItemIcon>
                           <Icon sx={{ fontSize: 20 }} />
                         </ListItemIcon>
-                        <ListItemText
-                          primary={item.label}
-                          primaryTypographyProps={{
-                            fontSize: "0.86rem",
-                            fontWeight: "inherit",
-                            letterSpacing: "-0.01em",
-                          }}
-                        />
+                        <ListItemText primary={item.label} />
                       </ListItemButton>
                     );
                   })}
@@ -288,7 +324,7 @@ export function ClientLayout() {
             px: 2.5,
             py: 2,
             borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-            bgcolor: "rgba(0, 0, 0, 0.2)",
+            bgcolor: "rgba(0, 0, 0, 0.25)",
           }}
         >
           <Box
@@ -302,32 +338,37 @@ export function ClientLayout() {
               textDecoration: "none",
               borderRadius: 2,
               px: 1,
-              py: 0.5,
-              ml: -1,
+              py: 0.6,
+              ml: -0.75,
               flexGrow: 1,
-              "&:hover": { bgcolor: "rgba(255, 255, 255, 0.06)" },
+              transition: "background 0.15s ease",
+              "&:hover": { bgcolor: "rgba(255, 255, 255, 0.08)" },
             }}
           >
             <Avatar
               src={me?.avatarUrl ?? undefined}
               sx={{
-                width: 36,
-                height: 36,
-                bgcolor: "rgba(255, 255, 255, 0.08)",
-                color: "#e2e8f0",
-                fontSize: "0.85rem",
-                fontWeight: 700,
-                border: "1px solid rgba(255, 255, 255, 0.12)",
+                width: 38,
+                height: 38,
+                bgcolor: "rgba(2, 132, 199, 0.25)",
+                color: "#38bdf8",
+                fontSize: "0.88rem",
+                fontWeight: 800,
+                border: "1.5px solid rgba(56, 189, 248, 0.4)",
               }}
             >
               {(me?.name ?? "?").trim().charAt(0).toUpperCase() || initial}
             </Avatar>
             <Box minWidth={0}>
-              <Typography variant="body2" fontWeight={700} noWrap sx={{ color: "#f8fafc" }}>
+              <Typography variant="body2" fontWeight={800} noWrap sx={{ color: "#ffffff !important", fontSize: "0.88rem" }}>
                 {me?.name ?? "Account Owner"}
               </Typography>
-              <Typography variant="caption" sx={{ color: "rgba(255, 255, 255, 0.45)", display: "block" }} noWrap>
-                {me?.role?.name ?? (me?.isClientAdmin ? "Administrator" : "—")}
+              <Typography
+                variant="caption"
+                sx={{ color: "#94a3b8 !important", display: "block", fontSize: "0.74rem", fontWeight: 600 }}
+                noWrap
+              >
+                {me?.role?.name ?? (me?.isClientAdmin ? "Administrator" : "Team Member")}
               </Typography>
             </Box>
           </Box>
@@ -337,13 +378,17 @@ export function ClientLayout() {
               onClick={logout}
               size="small"
               sx={{
-                color: "rgba(255, 255, 255, 0.65)",
+                color: "rgba(255, 255, 255, 0.7)",
                 bgcolor: "rgba(255, 255, 255, 0.06)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
                 borderRadius: 2,
                 p: 0.9,
+                transition: "all 0.18s ease",
                 "&:hover": {
-                  bgcolor: "rgba(239, 68, 68, 0.15)",
+                  bgcolor: "rgba(239, 68, 68, 0.2)",
+                  borderColor: "rgba(239, 68, 68, 0.4)",
                   color: "#f87171",
+                  transform: "scale(1.05)",
                 },
               }}
             >

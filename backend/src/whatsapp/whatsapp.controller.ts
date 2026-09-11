@@ -4,24 +4,38 @@ import { prisma } from "../db/prisma";
 import { ok, fail } from "../common/response";
 import { authenticate } from "../guards/authenticate";
 import { scopeTenant } from "../guards/tenant-scope.guard";
-import { requireEntitlement } from "../guards/entitlement.guard";
 import { requirePermission } from "../guards/rbac.guard";
 import { encryptSecret } from "../common/crypto";
 import { logTenantAction } from "../audit/audit.service";
-import { sendWhatsAppMessage, recordInboundWhatsAppMessage } from "./whatsapp.service";
+import {
+  sendWhatsAppMessage,
+  recordInboundWhatsAppMessage,
+  getOrSeedTemplates,
+  resetDefaultTemplates,
+} from "./whatsapp.service";
 
 export const whatsappRouter = Router();
 
-// WhatsApp Business API integration is Enterprise only (SRS section
-// 12/FR-12.2, entitlement key "integrations"). See whatsapp.service.ts
-// for why sending is simulated rather than live.
-whatsappRouter.use(authenticate, scopeTenant(), requireEntitlement("integrations"));
+// Multi-tenant WhatsApp Suite: Accessible to all authenticated CRM tenant staff
+whatsappRouter.use(authenticate, scopeTenant());
 
+// --- Config Endpoints ---
 whatsappRouter.get("/config", requirePermission("settings", "view"), async (req, res, next) => {
   try {
     const config = await prisma.whatsAppConfig.findUnique({ where: { clientId: req.clientId! } });
-    if (!config) return ok(res, null);
-    // Never return the encrypted token itself, only whether one is set.
+    if (!config) {
+      return ok(res, {
+        provider: "QUICK_LINK",
+        phoneNumberId: "",
+        businessAccountId: "",
+        webhookVerifyToken: "",
+        autoWelcomeEnabled: false,
+        autoItineraryShare: false,
+        autoCabDispatch: false,
+        isActive: false,
+        hasAccessToken: false,
+      });
+    }
     const { accessTokenEncrypted, ...safe } = config;
     return ok(res, { ...safe, hasAccessToken: !!accessTokenEncrypted });
   } catch (err) {
@@ -30,10 +44,14 @@ whatsappRouter.get("/config", requirePermission("settings", "view"), async (req,
 });
 
 const configSchema = z.object({
-  phoneNumberId: z.string().optional(),
-  businessAccountId: z.string().optional(),
+  provider: z.enum(["QUICK_LINK", "META_CLOUD", "SIMULATED"]).optional(),
+  phoneNumberId: z.string().optional().nullable(),
+  businessAccountId: z.string().optional().nullable(),
   accessToken: z.string().optional(),
-  webhookVerifyToken: z.string().optional(),
+  webhookVerifyToken: z.string().optional().nullable(),
+  autoWelcomeEnabled: z.boolean().optional(),
+  autoItineraryShare: z.boolean().optional(),
+  autoCabDispatch: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -44,55 +62,206 @@ whatsappRouter.post("/config", requirePermission("settings", "edit"), async (req
 
     const config = await prisma.whatsAppConfig.upsert({
       where: { clientId: req.clientId! },
-      update: { ...rest, ...(accessToken ? { accessTokenEncrypted: encryptSecret(accessToken) } : {}) },
-      create: { clientId: req.clientId!, ...rest, accessTokenEncrypted: accessToken ? encryptSecret(accessToken) : null },
+      update: {
+        ...rest,
+        ...(accessToken ? { accessTokenEncrypted: encryptSecret(accessToken) } : {}),
+      },
+      create: {
+        clientId: req.clientId!,
+        ...rest,
+        accessTokenEncrypted: accessToken ? encryptSecret(accessToken) : null,
+      },
     });
 
-    await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "UPDATE_WHATSAPP_CONFIG" });
+    await logTenantAction({
+      clientId: req.clientId!,
+      userId: req.auth!.sub,
+      action: "UPDATE_WHATSAPP_CONFIG",
+    });
+
     const { accessTokenEncrypted, ...safe } = config;
-    return ok(res, { ...safe, hasAccessToken: !!accessTokenEncrypted }, "WhatsApp settings saved");
+    return ok(res, { ...safe, hasAccessToken: !!accessTokenEncrypted }, "WhatsApp settings saved successfully");
   } catch (err) {
     next(err);
   }
 });
 
+// --- Template Endpoints ---
+whatsappRouter.get("/templates", requirePermission("enquiries", "view"), async (req, res, next) => {
+  try {
+    const templates = await getOrSeedTemplates(req.clientId!);
+    return ok(res, templates);
+  } catch (err) {
+    next(err);
+  }
+});
+
+const templateSchema = z.object({
+  name: z.string().min(1, "Template name is required"),
+  category: z.string().min(1, "Category is required"),
+  body: z.string().min(1, "Message body is required"),
+  isActive: z.boolean().optional(),
+});
+
+whatsappRouter.post("/templates", requirePermission("settings", "edit"), async (req, res, next) => {
+  try {
+    const input = templateSchema.parse(req.body);
+    const template = await prisma.whatsAppTemplate.create({
+      data: {
+        clientId: req.clientId!,
+        name: input.name,
+        category: input.category,
+        body: input.body,
+        isActive: input.isActive ?? true,
+        isDefault: false,
+      },
+    });
+
+    await logTenantAction({
+      clientId: req.clientId!,
+      userId: req.auth!.sub,
+      action: "CREATE_WHATSAPP_TEMPLATE",
+      target: template.id,
+    });
+
+    return ok(res, template, "Template created successfully");
+  } catch (err) {
+    next(err);
+  }
+});
+
+whatsappRouter.put("/templates/:id", requirePermission("settings", "edit"), async (req, res, next) => {
+  try {
+    const input = templateSchema.partial().parse(req.body);
+    const existing = await prisma.whatsAppTemplate.findFirst({
+      where: { id: req.params.id, clientId: req.clientId! },
+    });
+
+    if (!existing) {
+      return fail(res, 404, "Template not found", "NOT_FOUND");
+    }
+
+    const updated = await prisma.whatsAppTemplate.update({
+      where: { id: req.params.id },
+      data: input,
+    });
+
+    await logTenantAction({
+      clientId: req.clientId!,
+      userId: req.auth!.sub,
+      action: "UPDATE_WHATSAPP_TEMPLATE",
+      target: updated.id,
+    });
+
+    return ok(res, updated, "Template updated successfully");
+  } catch (err) {
+    next(err);
+  }
+});
+
+whatsappRouter.delete("/templates/:id", requirePermission("settings", "delete"), async (req, res, next) => {
+  try {
+    const existing = await prisma.whatsAppTemplate.findFirst({
+      where: { id: req.params.id, clientId: req.clientId! },
+    });
+
+    if (!existing) {
+      return fail(res, 404, "Template not found", "NOT_FOUND");
+    }
+
+    await prisma.whatsAppTemplate.delete({ where: { id: req.params.id } });
+
+    await logTenantAction({
+      clientId: req.clientId!,
+      userId: req.auth!.sub,
+      action: "DELETE_WHATSAPP_TEMPLATE",
+      target: req.params.id,
+    });
+
+    return ok(res, { id: req.params.id }, "Template deleted");
+  } catch (err) {
+    next(err);
+  }
+});
+
+whatsappRouter.post("/templates/reset-defaults", requirePermission("settings", "edit"), async (req, res, next) => {
+  try {
+    const templates = await resetDefaultTemplates(req.clientId!);
+    await logTenantAction({
+      clientId: req.clientId!,
+      userId: req.auth!.sub,
+      action: "RESET_WHATSAPP_TEMPLATES",
+    });
+    return ok(res, templates, "Reset to standard travel templates");
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Message & Dispatch Endpoints ---
 whatsappRouter.get("/messages", requirePermission("enquiries", "view"), async (req, res, next) => {
   try {
-    const { enquiryId } = req.query as Record<string, string | undefined>;
-    const messages = await prisma.whatsAppMessage.findMany({
-      where: { clientId: req.clientId!, ...(enquiryId ? { enquiryId } : {}) },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
-    return ok(res, messages);
+    const { enquiryId, page, limit } = req.query as Record<string, string | undefined>;
+    const take = Math.min(Number(limit) || 100, 200);
+    const skip = ((Number(page) || 1) - 1) * take;
+
+    const [messages, total] = await Promise.all([
+      prisma.whatsAppMessage.findMany({
+        where: {
+          clientId: req.clientId!,
+          ...(enquiryId ? { enquiryId } : {}),
+        },
+        orderBy: { createdAt: "desc" },
+        take,
+        skip,
+      }),
+      prisma.whatsAppMessage.count({
+        where: {
+          clientId: req.clientId!,
+          ...(enquiryId ? { enquiryId } : {}),
+        },
+      }),
+    ]);
+
+    return ok(res, { messages, total, page: Number(page) || 1, limit: take });
   } catch (err) {
     next(err);
   }
 });
 
-const sendSchema = z.object({ toNumber: z.string().min(1), body: z.string().min(1), enquiryId: z.string().optional() });
+const sendSchema = z.object({
+  toNumber: z.string().min(1, "Phone number is required"),
+  body: z.string().min(1, "Message text is required"),
+  enquiryId: z.string().optional(),
+  mode: z.enum(["QUICK_LINK", "META_CLOUD", "AUTO"]).optional(),
+});
 
 whatsappRouter.post("/send", requirePermission("enquiries", "edit"), async (req, res, next) => {
   try {
     const input = sendSchema.parse(req.body);
-    const result = await sendWhatsAppMessage({ clientId: req.clientId!, ...input });
+    const result = await sendWhatsAppMessage({
+      clientId: req.clientId!,
+      toNumber: input.toNumber,
+      body: input.body,
+      enquiryId: input.enquiryId,
+      mode: input.mode,
+    });
 
-    if (!result.simulated && result.status === "FAILED") {
-      return fail(res, 502, "WhatsApp is configured but no live API integration exists yet — message was logged but not delivered.", "WHATSAPP_NOT_LIVE");
+    if (result.status === "FAILED") {
+      return fail(res, 400, result.error || "Failed to dispatch message via Cloud API.", "WHATSAPP_SEND_FAILED");
     }
 
-    return ok(res, result, result.simulated ? "Message simulated (no live WhatsApp connection configured)" : "Message sent");
+    const message = result.waUrl
+      ? "Ready to send via WhatsApp Web / App"
+      : "Message sent successfully via Meta Cloud API";
+
+    return ok(res, result, message);
   } catch (err) {
     next(err);
   }
 });
 
-// --- Public webhook (no JWT — Meta calls this directly) -----------------------
-// Mounted separately in routes/index.ts at /api/whatsapp-webhook/:clientId
-// (a distinct path prefix from /api/whatsapp — see the comment there for
-// why they can't share one). Verified via each client's own
-// webhookVerifyToken. URL shape gives each client a distinct callback URL,
-// matching Meta's one-webhook-URL-per-app model.
+// --- Public Webhook for Meta Cloud API ---
 export const whatsappWebhookRouter = Router();
 
 whatsappWebhookRouter.get("/:clientId", async (req, res) => {
@@ -115,10 +284,6 @@ const webhookPayloadSchema = z.object({
 
 whatsappWebhookRouter.post("/:clientId", async (req, res, next) => {
   try {
-    // Real Meta payloads are nested (entry[].changes[].value.messages[]);
-    // this accepts a flattened shape so the receiver is testable today,
-    // with the real unwrapping left as the one piece to add once a
-    // genuine Meta webhook is pointed at this URL.
     const input = webhookPayloadSchema.parse(req.body);
     await recordInboundWhatsAppMessage({
       clientId: req.params.clientId,

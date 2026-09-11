@@ -38,6 +38,7 @@ import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import BookmarkBorderRoundedIcon from "@mui/icons-material/BookmarkBorderRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 
 import {
   getItinerary,
@@ -48,6 +49,7 @@ import {
 } from "../../api/itineraries";
 import { apiClient } from "../../api/client";
 import { Itinerary, ItineraryDay, ItineraryPricingTier } from "../../types/itinerary";
+import { WhatsAppModal } from "../../components/whatsapp/WhatsAppModal";
 
 const COMMON_INCLUSIONS_PRESETS = [
   "Daily Breakfast & Dinner",
@@ -114,6 +116,7 @@ export function ItineraryBuilderPage() {
   const [childrenCount, setChildrenCount] = useState(0);
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [shareSlug, setShareSlug] = useState("");
+  const [whatsAppOpen, setWhatsAppOpen] = useState(false);
 
   const [showPricing, setShowPricing] = useState(true);
   const [showHotels, setShowHotels] = useState(true);
@@ -402,18 +405,35 @@ export function ItineraryBuilderPage() {
 
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
           {shareSlug && (
-            <Button
-              variant="outlined"
-              color="primary"
-              startIcon={<OpenInNewRoundedIcon />}
-              component="a"
-              href={`/view/${shareSlug}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2 }}
-            >
-              Preview Client Link
-            </Button>
+            <>
+              <Button
+                variant="contained"
+                startIcon={<WhatsAppIcon />}
+                onClick={() => setWhatsAppOpen(true)}
+                sx={{
+                  bgcolor: "#25d366",
+                  "&:hover": { bgcolor: "#1ebe5d" },
+                  textTransform: "none",
+                  fontWeight: 700,
+                  borderRadius: 2,
+                }}
+              >
+                Share on WhatsApp
+              </Button>
+
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<OpenInNewRoundedIcon />}
+                component="a"
+                href={`/view/${shareSlug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2 }}
+              >
+                Preview Client Link
+              </Button>
+            </>
           )}
 
           {isEditing && (
@@ -1260,6 +1280,24 @@ export function ItineraryBuilderPage() {
           {toast}
         </Alert>
       </Snackbar>
+
+      {/* WhatsApp Share Modal */}
+      {shareSlug && (
+        <WhatsAppModal
+          open={whatsAppOpen}
+          onClose={() => setWhatsAppOpen(false)}
+          initialPhone={customers.find((c: any) => c.id === customerId)?.phone || ""}
+          customerName={customers.find((c: any) => c.id === customerId)?.name || ""}
+          enquiryId={enquiryId || undefined}
+          defaultCategory="ITINERARY_SHARE"
+          variables={{
+            trip_title: tripTitle,
+            destination,
+            duration: `${totalDays} Days / ${totalNights} Nights`,
+            itinerary_link: `${window.location.origin}/view/${shareSlug}`,
+          }}
+        />
+      )}
     </Box>
   );
 }

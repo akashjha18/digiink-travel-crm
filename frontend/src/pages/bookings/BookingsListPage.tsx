@@ -84,6 +84,14 @@ export function BookingsListPage() {
     return filteredBookings.slice(start, start + rowsPerPage);
   }, [filteredBookings, page, rowsPerPage]);
 
+  const stats = useMemo(() => {
+    const totalRev = bookings.reduce((sum, b) => sum + (b.amountInPaise || 0), 0) / 100;
+    const confirmed = bookings.filter((b) => b.status === "CONFIRMED").length;
+    const inProgress = bookings.filter((b) => b.status === "IN_PROGRESS").length;
+    const completed = bookings.filter((b) => b.status === "COMPLETED").length;
+    return { totalRev, confirmed, inProgress, completed };
+  }, [bookings]);
+
   return (
     <Box sx={{ p: { xs: 2.5, md: 4.5 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
       {/* Top Header */}
@@ -93,7 +101,7 @@ export function BookingsListPage() {
         justifyContent="space-between"
         alignItems={{ xs: "flex-start", sm: "center" }}
         gap={2}
-        mb={3.5}
+        mb={3}
       >
         <Box>
           <Box display="flex" alignItems="center" gap={1.5}>
@@ -101,15 +109,16 @@ export function BookingsListPage() {
               Active Bookings
             </Typography>
             <Chip
-              label={`${bookings.length} Bookings`}
+              label={`${bookings.length} Operations`}
               size="small"
               icon={<EventAvailableRoundedIcon style={{ fontSize: 15 }} />}
               sx={{
-                bgcolor: "#eff6ff",
-                color: "#2563eb",
+                bgcolor: "rgba(2, 132, 199, 0.1)",
+                color: "#0284c7",
                 fontWeight: 800,
                 fontSize: "0.72rem",
                 borderRadius: "6px",
+                border: "1px solid rgba(2, 132, 199, 0.2)",
               }}
             />
           </Box>
@@ -117,6 +126,110 @@ export function BookingsListPage() {
             Track confirmed tour operations, fleet & driver allocations, and transit status.
           </Typography>
         </Box>
+      </Box>
+
+      {/* KPI Stats Strip */}
+      <Box
+        display="grid"
+        gridTemplateColumns={{ xs: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }}
+        gap={2}
+        mb={3}
+      >
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(2, 132, 199, 0.1)", color: "#0284c7", borderRadius: 2.5, width: 44, height: 44 }}>
+            <EventAvailableRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Total Bookings
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {bookings.length}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(16, 185, 129, 0.1)", color: "#10b981", borderRadius: 2.5, width: 44, height: 44 }}>
+            <PersonRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Confirmed
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.confirmed}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(249, 115, 22, 0.1)", color: "#f97316", borderRadius: 2.5, width: 44, height: 44 }}>
+            <DirectionsCarRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              In Progress
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.inProgress}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(147, 51, 234, 0.1)", color: "#9333ea", borderRadius: 2.5, width: 44, height: 44 }}>
+            <BadgeRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Pipeline Value
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              ₹{stats.totalRev.toLocaleString("en-IN")}
+            </Typography>
+          </Box>
+        </Paper>
       </Box>
 
       {/* Filter and Search Bar */}

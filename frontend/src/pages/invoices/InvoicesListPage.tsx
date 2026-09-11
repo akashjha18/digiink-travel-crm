@@ -65,6 +65,12 @@ export function InvoicesListPage() {
     return invoices.reduce((acc, inv) => acc + (inv.totalInPaise || 0), 0);
   }, [invoices]);
 
+  const stats = useMemo(() => {
+    const totalAmount = totalInvoicedAmount / 100;
+    const avgAmount = invoices.length ? totalAmount / invoices.length : 0;
+    return { count: invoices.length, totalAmount, avgAmount };
+  }, [invoices, totalInvoicedAmount]);
+
   return (
     <Box sx={{ p: { xs: 2.5, md: 4.5 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
       {/* Top Header */}
@@ -74,7 +80,7 @@ export function InvoicesListPage() {
         justifyContent="space-between"
         alignItems={{ xs: "flex-start", sm: "center" }}
         gap={2}
-        mb={3.5}
+        mb={3}
       >
         <Box>
           <Box display="flex" alignItems="center" gap={1.5}>
@@ -86,11 +92,12 @@ export function InvoicesListPage() {
               size="small"
               icon={<ReceiptLongRoundedIcon style={{ fontSize: 14 }} />}
               sx={{
-                bgcolor: "#eff6ff",
-                color: "#2563eb",
+                bgcolor: "rgba(2, 132, 199, 0.1)",
+                color: "#0284c7",
                 fontWeight: 800,
                 fontSize: "0.72rem",
                 borderRadius: "6px",
+                border: "1px solid rgba(2, 132, 199, 0.2)",
               }}
             />
           </Box>
@@ -98,29 +105,86 @@ export function InvoicesListPage() {
             Formal tax invoices generated across verified bookings with automated GST calculations.
           </Typography>
         </Box>
+      </Box>
 
-        <Box
+      {/* KPI Stat Cards */}
+      <Box
+        display="grid"
+        gridTemplateColumns={{ xs: "repeat(1, 1fr)", sm: "repeat(3, 1fr)" }}
+        gap={2.5}
+        mb={3}
+      >
+        <Paper
           sx={{
-            px: 2.5,
-            py: 1.25,
-            bgcolor: "#ffffff",
-            borderRadius: 3,
+            p: 2.5,
             border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
             display: "flex",
             alignItems: "center",
             gap: 2,
-            boxShadow: "0 2px 8px rgba(16, 24, 40, 0.04)",
           }}
         >
+          <Avatar sx={{ bgcolor: "rgba(2, 132, 199, 0.1)", color: "#0284c7", borderRadius: 2.5, width: 46, height: 46 }}>
+            <ReceiptLongRoundedIcon />
+          </Avatar>
           <Box>
-            <Typography variant="caption" fontWeight={700} color="#64748b" textTransform="uppercase">
-              Total Invoiced
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Total Issued
             </Typography>
-            <Typography variant="h6" fontWeight={900} color="#0f172a">
-              ₹{(totalInvoicedAmount / 100).toLocaleString("en-IN")}
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.count} Invoices
             </Typography>
           </Box>
-        </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.5,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(16, 185, 129, 0.1)", color: "#10b981", borderRadius: 2.5, width: 46, height: 46 }}>
+            <PersonRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Gross Billed Amount
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              ₹{stats.totalAmount.toLocaleString("en-IN")}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.5,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(147, 51, 234, 0.1)", color: "#9333ea", borderRadius: 2.5, width: 46, height: 46 }}>
+            <CalendarTodayRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Average Ticket
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              ₹{Math.round(stats.avgAmount).toLocaleString("en-IN")}
+            </Typography>
+          </Box>
+        </Paper>
       </Box>
 
       {/* Filter and Search Bar */}

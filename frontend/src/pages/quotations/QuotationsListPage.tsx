@@ -87,6 +87,14 @@ export function QuotationsListPage() {
     return filteredQuotations.slice(start, start + rowsPerPage);
   }, [filteredQuotations, page, rowsPerPage]);
 
+  const stats = useMemo(() => {
+    const total = quotations.length;
+    const sent = quotations.filter((q) => q.status === "SENT").length;
+    const accepted = quotations.filter((q) => q.status === "ACCEPTED").length;
+    const totalVal = quotations.reduce((acc, q) => acc + (q.totalAmountInPaise || 0), 0) / 100;
+    return { total, sent, accepted, totalVal };
+  }, [quotations]);
+
   return (
     <Box sx={{ p: { xs: 2.5, md: 4.5 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
       {/* Top Header */}
@@ -96,7 +104,7 @@ export function QuotationsListPage() {
         justifyContent="space-between"
         alignItems={{ xs: "flex-start", sm: "center" }}
         gap={2}
-        mb={3.5}
+        mb={3}
       >
         <Box>
           <Box display="flex" alignItems="center" gap={1.5}>
@@ -108,11 +116,12 @@ export function QuotationsListPage() {
               size="small"
               icon={<RequestQuoteRoundedIcon style={{ fontSize: 15 }} />}
               sx={{
-                bgcolor: "#eff6ff",
-                color: "#2563eb",
+                bgcolor: "rgba(2, 132, 199, 0.1)",
+                color: "#0284c7",
                 fontWeight: 800,
                 fontSize: "0.72rem",
                 borderRadius: "6px",
+                border: "1px solid rgba(2, 132, 199, 0.2)",
               }}
             />
           </Box>
@@ -120,6 +129,110 @@ export function QuotationsListPage() {
             Manage cost estimates, version tracking, and conversion to confirmed travel bookings.
           </Typography>
         </Box>
+      </Box>
+
+      {/* KPI Stats Strip */}
+      <Box
+        display="grid"
+        gridTemplateColumns={{ xs: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }}
+        gap={2}
+        mb={3}
+      >
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(2, 132, 199, 0.1)", color: "#0284c7", borderRadius: 2.5, width: 44, height: 44 }}>
+            <RequestQuoteRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Total Proposals
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.total}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(59, 130, 246, 0.1)", color: "#3b82f6", borderRadius: 2.5, width: 44, height: 44 }}>
+            <HourglassEmptyRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Sent to Client
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.sent}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(16, 185, 129, 0.1)", color: "#10b981", borderRadius: 2.5, width: 44, height: 44 }}>
+            <CheckCircleRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Accepted
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              {stats.accepted}
+            </Typography>
+          </Box>
+        </Paper>
+
+        <Paper
+          sx={{
+            p: 2.25,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            bgcolor: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Avatar sx={{ bgcolor: "rgba(147, 51, 234, 0.1)", color: "#9333ea", borderRadius: 2.5, width: 44, height: 44 }}>
+            <DescriptionRoundedIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Estimated Value
+            </Typography>
+            <Typography variant="h5" fontWeight={900} color="#0f172a">
+              ₹{stats.totalVal.toLocaleString("en-IN")}
+            </Typography>
+          </Box>
+        </Paper>
       </Box>
 
       {/* Filter and Search Bar */}

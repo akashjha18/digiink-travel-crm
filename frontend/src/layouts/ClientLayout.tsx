@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Box,
   List,
@@ -11,6 +11,9 @@ import {
   IconButton,
   Chip,
   Tooltip,
+  Button,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import ContactPhoneRoundedIcon from "@mui/icons-material/ContactPhoneRounded";
@@ -35,9 +38,13 @@ import AdminPanelSettingsRoundedIcon from "@mui/icons-material/AdminPanelSetting
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import FlightTakeoffRoundedIcon from "@mui/icons-material/FlightTakeoffRounded";
 import FiberManualRecordRoundedIcon from "@mui/icons-material/FiberManualRecordRounded";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import { apiClient } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 import { SubscriptionBanner } from "../components/SubscriptionBanner";
+import { NotificationCenter } from "../components/notifications/NotificationCenter";
+import { GlobalQuickSearchModal } from "../components/common/GlobalQuickSearchModal";
 
 const DRAWER_WIDTH = 276;
 
@@ -91,8 +98,23 @@ const NAV_GROUPS = [
 
 export function ClientLayout() {
   const { logout } = useAuth();
+  const navigate = useNavigate();
   const [client, setClient] = useState<any>(null);
   const [me, setMe] = useState<any>(null);
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
+  const [quickMenuAnchor, setQuickMenuAnchor] = useState<null | HTMLElement>(null);
+
+  // Global keyboard shortcut: Ctrl+K or Cmd+K
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setQuickSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     apiClient
@@ -407,10 +429,162 @@ export function ClientLayout() {
           width: `calc(100% - ${DRAWER_WIDTH}px)`,
           minHeight: "100vh",
           bgcolor: "#f8fafc",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
+        {/* Global Top Utility Header Bar */}
+        <Box
+          sx={{
+            px: { xs: 2, sm: 3.5 },
+            py: 1.25,
+            bgcolor: "#ffffff",
+            borderBottom: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 2,
+            position: "sticky",
+            top: 0,
+            zIndex: 100,
+            boxShadow: "0 1px 3px 0 rgba(15, 23, 42, 0.03)",
+          }}
+        >
+          {/* Quick Search Spotlight Button */}
+          <Box
+            onClick={() => setQuickSearchOpen(true)}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1.5,
+              bgcolor: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: 2.5,
+              px: 2,
+              py: 0.8,
+              cursor: "pointer",
+              width: { xs: 220, sm: 320, md: 380 },
+              transition: "all 0.15s ease",
+              "&:hover": {
+                bgcolor: "#f1f5f9",
+                borderColor: "#cbd5e1",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.03)",
+              },
+            }}
+          >
+            <SearchRoundedIcon sx={{ color: "#94a3b8", fontSize: 20 }} />
+            <Typography variant="body2" sx={{ color: "#64748b", fontSize: "0.85rem", flexGrow: 1, fontWeight: 500 }}>
+              Search leads, bookings, customers...
+            </Typography>
+            <Chip
+              label="Ctrl + K"
+              size="small"
+              sx={{
+                height: 20,
+                fontSize: "0.68rem",
+                fontWeight: 700,
+                bgcolor: "#ffffff",
+                border: "1px solid #cbd5e1",
+                color: "#64748b",
+                borderRadius: 1,
+              }}
+            />
+          </Box>
+
+          {/* Right actions: Quick Create & Notification Bell */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<AddRoundedIcon sx={{ fontSize: 18 }} />}
+              onClick={(e) => setQuickMenuAnchor(e.currentTarget)}
+              sx={{
+                background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                textTransform: "none",
+                fontWeight: 700,
+                fontSize: "0.825rem",
+                borderRadius: 2.5,
+                px: 2,
+                py: 0.8,
+                boxShadow: "0 2px 8px rgba(2, 132, 199, 0.25)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #0369a1 0%, #075985 100%)",
+                  transform: "translateY(-1px)",
+                },
+              }}
+            >
+              Quick Create
+            </Button>
+
+            <Menu
+              anchorEl={quickMenuAnchor}
+              open={Boolean(quickMenuAnchor)}
+              onClose={() => setQuickMenuAnchor(null)}
+              transformOrigin={{ horizontal: "right", vertical: "top" }}
+              anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+              PaperProps={{
+                sx: {
+                  borderRadius: 2.5,
+                  minWidth: 180,
+                  mt: 1,
+                  boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.15)",
+                  border: "1px solid #e2e8f0",
+                },
+              }}
+            >
+              <MenuItem
+                onClick={() => {
+                  setQuickMenuAnchor(null);
+                  navigate("/app/enquiries");
+                }}
+                sx={{ fontSize: "0.85rem", fontWeight: 600, py: 1 }}
+              >
+                + New Lead
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setQuickMenuAnchor(null);
+                  navigate("/app/customers");
+                }}
+                sx={{ fontSize: "0.85rem", fontWeight: 600, py: 1 }}
+              >
+                + New Customer
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setQuickMenuAnchor(null);
+                  navigate("/app/quotations/builder");
+                }}
+                sx={{ fontSize: "0.85rem", fontWeight: 600, py: 1 }}
+              >
+                + New Quotation
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setQuickMenuAnchor(null);
+                  navigate("/app/bookings");
+                }}
+                sx={{ fontSize: "0.85rem", fontWeight: 600, py: 1 }}
+              >
+                + New Booking
+              </MenuItem>
+            </Menu>
+
+            {/* Notification Center Bell */}
+            <NotificationCenter />
+          </Box>
+        </Box>
+
         {client && <SubscriptionBanner status={client.subscriptionStatus} expiry={client.subscriptionExpiry} />}
-        <Outlet />
+        <Box sx={{ flexGrow: 1 }}>
+          <Outlet />
+        </Box>
+
+        {/* Global Quick Search Modal */}
+        <GlobalQuickSearchModal
+          open={quickSearchOpen}
+          onClose={() => setQuickSearchOpen(false)}
+        />
       </Box>
     </Box>
   );

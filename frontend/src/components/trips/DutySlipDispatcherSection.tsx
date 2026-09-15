@@ -35,6 +35,9 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import DirectionsCarIcon from "@mui/icons-material/DirectionsCar";
 import PersonIcon from "@mui/icons-material/Person";
 import StarIcon from "@mui/icons-material/Star";
+import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import ImageIcon from "@mui/icons-material/Image";
+import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 
 import { DutySlip } from "../../types/dutySlip";
 import {
@@ -42,6 +45,7 @@ import {
   generateTripDutySlip,
   dispatchDutySlip,
   updateTripDutySlip,
+  syncDutySlipBilling,
 } from "../../api/dutySlips";
 
 interface DutySlipDispatcherSectionProps {
@@ -73,6 +77,11 @@ export const DutySlipDispatcherSection: React.FC<DutySlipDispatcherSectionProps>
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [printModalOpen, setPrintModalOpen] = useState(false);
+  const [photoModal, setPhotoModal] = useState<{ open: boolean; url: string; title: string }>({
+    open: false,
+    url: "",
+    title: "",
+  });
 
   async function loadSlip() {
     setLoading(true);
@@ -133,8 +142,8 @@ export const DutySlipDispatcherSection: React.FC<DutySlipDispatcherSectionProps>
         setDutySlip({ ...dutySlip, status: "DISPATCHED" });
       }
 
-      const driverPhone = trip.driver?.phone || "";
-      const driverName = trip.driver?.name || "Driver";
+      const driverPhone = trip.driver?.contact || trip.driver?.phone || dutySlip.driverPhone || "";
+      const driverName = trip.driver?.name || dutySlip.driverName || "Driver";
       const customerName = trip.booking?.customer?.name || "Passenger";
       const customerPhone = trip.booking?.customer?.phone || "";
       const pickupLoc = trip.pickup || "Designated Location";
@@ -183,6 +192,23 @@ _Please tap the link above on your phone to view passenger contact, open GPS nav
       if (onTripRefresh) onTripRefresh();
     } catch (err: any) {
       setErrorMessage(err.response?.data?.message || "Failed to update status");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleSyncBilling() {
+    setActionLoading(true);
+    setErrorMessage(null);
+    try {
+      const result = await syncDutySlipBilling(tripId);
+      setDutySlip(result.dutySlip);
+      setToastMessage(
+        `Expenses (₹${result.totalRecoverableInRupees}) and ${result.totalKm} KM logged to Booking invoice notes!`
+      );
+      if (onTripRefresh) onTripRefresh();
+    } catch (err: any) {
+      setErrorMessage(err.response?.data?.message || "Failed to sync billing to booking invoice");
     } finally {
       setActionLoading(false);
     }
@@ -346,26 +372,83 @@ _Please tap the link above on your phone to view passenger contact, open GPS nav
         {/* Metric 1: Start Odometer */}
         <Grid item xs={12} sm={6} md={3}>
           <Box sx={{ p: 2, bgcolor: "#f8fafc", borderRadius: 1.5, border: "1px solid #e2e8f0" }}>
-            <Typography variant="caption" color="text.secondary" textTransform="uppercase" fontWeight="bold">
-              Opening Odometer
-            </Typography>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <Typography variant="caption" color="text.secondary" textTransform="uppercase" fontWeight="bold">
+                Opening Odometer
+              </Typography>
+              {dutySlip.startOdoPhotoUrl && (
+                <Tooltip title="View Opening Meter Photo Proof">
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() =>
+                      setPhotoModal({
+                        open: true,
+                        url: dutySlip.startOdoPhotoUrl!,
+                        title: `Opening Meter Photo (${dutySlip.startOdometer} KM)`,
+                      })
+                    }
+                    sx={{ p: 0.5, border: "1px solid #cbd5e1" }}
+                  >
+                    <PhotoCameraIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
             <Typography variant="h5" fontWeight="bold" color="primary.main" sx={{ mt: 0.5 }}>
               {dutySlip.startOdometer !== null ? `${dutySlip.startOdometer} KM` : "Not Started"}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" display="block">
               {dutySlip.startTime
                 ? new Date(dutySlip.startTime).toLocaleString([], { dateStyle: "short", timeStyle: "short" })
                 : "Awaiting driver start"}
             </Typography>
+            {dutySlip.startOdoPhotoUrl && (
+              <Button
+                size="small"
+                variant="text"
+                startIcon={<PhotoCameraIcon sx={{ fontSize: 14 }} />}
+                onClick={() =>
+                  setPhotoModal({
+                    open: true,
+                    url: dutySlip.startOdoPhotoUrl!,
+                    title: `Opening Meter Photo (${dutySlip.startOdometer} KM)`,
+                  })
+                }
+                sx={{ mt: 0.5, p: 0, textTransform: "none", fontSize: "0.72rem" }}
+              >
+                View Meter Photo
+              </Button>
+            )}
           </Box>
         </Grid>
 
         {/* Metric 2: End Odometer */}
         <Grid item xs={12} sm={6} md={3}>
           <Box sx={{ p: 2, bgcolor: "#f8fafc", borderRadius: 1.5, border: "1px solid #e2e8f0" }}>
-            <Typography variant="caption" color="text.secondary" textTransform="uppercase" fontWeight="bold">
-              Closing Odometer
-            </Typography>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <Typography variant="caption" color="text.secondary" textTransform="uppercase" fontWeight="bold">
+                Closing Odometer
+              </Typography>
+              {dutySlip.endOdoPhotoUrl && (
+                <Tooltip title="View Closing Meter Photo Proof">
+                  <IconButton
+                    size="small"
+                    color="success"
+                    onClick={() =>
+                      setPhotoModal({
+                        open: true,
+                        url: dutySlip.endOdoPhotoUrl!,
+                        title: `Closing Meter Photo (${dutySlip.endOdometer} KM)`,
+                      })
+                    }
+                    sx={{ p: 0.5, border: "1px solid #cbd5e1" }}
+                  >
+                    <PhotoCameraIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
             <Typography
               variant="h5"
               fontWeight="bold"
@@ -374,11 +457,29 @@ _Please tap the link above on your phone to view passenger contact, open GPS nav
             >
               {dutySlip.endOdometer !== null ? `${dutySlip.endOdometer} KM` : "In Progress"}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" display="block">
               {dutySlip.endTime
                 ? new Date(dutySlip.endTime).toLocaleString([], { dateStyle: "short", timeStyle: "short" })
                 : "Active on duty"}
             </Typography>
+            {dutySlip.endOdoPhotoUrl && (
+              <Button
+                size="small"
+                variant="text"
+                color="success"
+                startIcon={<PhotoCameraIcon sx={{ fontSize: 14 }} />}
+                onClick={() =>
+                  setPhotoModal({
+                    open: true,
+                    url: dutySlip.endOdoPhotoUrl!,
+                    title: `Closing Meter Photo (${dutySlip.endOdometer} KM)`,
+                  })
+                }
+                sx={{ mt: 0.5, p: 0, textTransform: "none", fontSize: "0.72rem" }}
+              >
+                View Meter Photo
+              </Button>
+            )}
           </Box>
         </Grid>
 
@@ -430,6 +531,7 @@ _Please tap the link above on your phone to view passenger contact, open GPS nav
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>Notes</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Receipt</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 600 }}>
                         Amount (₹)
                       </TableCell>
@@ -442,13 +544,36 @@ _Please tap the link above on your phone to view passenger contact, open GPS nav
                           <Chip label={exp.expenseType} size="small" variant="outlined" />
                         </TableCell>
                         <TableCell>{exp.notes || "-"}</TableCell>
+                        <TableCell>
+                          {exp.receiptUrl ? (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<ImageIcon sx={{ fontSize: 13 }} />}
+                              onClick={() =>
+                                setPhotoModal({
+                                  open: true,
+                                  url: exp.receiptUrl!,
+                                  title: `${exp.expenseType} Receipt (₹${(exp.amountInPaise / 100).toFixed(2)})`,
+                                })
+                              }
+                              sx={{ textTransform: "none", fontSize: "0.72rem", py: "1px", px: 0.8 }}
+                            >
+                              Proof
+                            </Button>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">
+                              None
+                            </Typography>
+                          )}
+                        </TableCell>
                         <TableCell align="right" sx={{ fontWeight: "bold" }}>
                           ₹{(exp.amountInPaise / 100).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))}
                     <TableRow sx={{ bgcolor: "#f8fafc" }}>
-                      <TableCell colSpan={2} sx={{ fontWeight: "bold" }}>
+                      <TableCell colSpan={3} sx={{ fontWeight: "bold" }}>
                         Total Expenses
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: "bold", color: "warning.dark" }}>
@@ -512,10 +637,23 @@ _Please tap the link above on your phone to view passenger contact, open GPS nav
       )}
 
       {/* Quick Status Transition Bar */}
-      <Box sx={{ mt: 2.5, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-        {dutySlip.status === "COMPLETED" && (
+      <Box sx={{ mt: 2.5, display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
+        {(dutySlip.status === "COMPLETED" || dutySlip.status === "BILLED" || totalExpensesPaise > 0) && (
           <Button
             variant="contained"
+            color="primary"
+            size="small"
+            onClick={handleSyncBilling}
+            disabled={actionLoading}
+            startIcon={<AccountBalanceWalletIcon />}
+            sx={{ textTransform: "none", fontWeight: "bold" }}
+          >
+            Sync Expenses & Billing to Invoice
+          </Button>
+        )}
+        {dutySlip.status === "COMPLETED" && (
+          <Button
+            variant="outlined"
             color="secondary"
             size="small"
             onClick={() => handleMarkStatus("BILLED")}
@@ -755,6 +893,59 @@ _Please tap the link above on your phone to view passenger contact, open GPS nav
           <Button onClick={() => setPrintModalOpen(false)}>Close</Button>
           <Button variant="contained" startIcon={<PrintIcon />} onClick={() => window.print()}>
             Print
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* PHOTO ZOOM / PROOF MODAL */}
+      <Dialog
+        open={photoModal.open}
+        onClose={() => setPhotoModal({ open: false, url: "", title: "" })}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography variant="subtitle1" fontWeight="bold">
+            {photoModal.title}
+          </Typography>
+          <Button
+            size="small"
+            onClick={() => setPhotoModal({ open: false, url: "", title: "" })}
+            sx={{ minWidth: "auto", p: 0.5 }}
+          >
+            &times;
+          </Button>
+        </DialogTitle>
+        <DialogContent dividers sx={{ textAlign: "center", p: 2, bgcolor: "#0f172a" }}>
+          {photoModal.url && (
+            <Box
+              component="img"
+              src={photoModal.url}
+              alt={photoModal.title}
+              sx={{
+                maxWidth: "100%",
+                maxHeight: "65vh",
+                objectFit: "contain",
+                borderRadius: 1.5,
+                boxShadow: 3,
+              }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: "space-between", px: 2 }}>
+          <Button
+            startIcon={<OpenInNewIcon />}
+            onClick={() => window.open(photoModal.url, "_blank")}
+            sx={{ textTransform: "none" }}
+          >
+            Open in New Tab
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => setPhotoModal({ open: false, url: "", title: "" })}
+            sx={{ textTransform: "none" }}
+          >
+            Close
           </Button>
         </DialogActions>
       </Dialog>

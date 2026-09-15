@@ -71,3 +71,31 @@ export async function completeDutyTrip(
   );
   return data.data;
 }
+
+export async function uploadDutyAttachment(shareToken: string, dataUrl: string, fileName?: string) {
+  const { data } = await apiClient.post<{ data: { url: string } }>(
+    `/public/duty-slip/${shareToken}/upload`,
+    { dataUrl, fileName }
+  );
+  return data.data.url;
+}
+
+export async function confirmDriverArrival(shareToken: string) {
+  const { data } = await apiClient.post<{ data: DutySlip }>(
+    `/public/duty-slip/${shareToken}/arrive`
+  );
+  return data.data;
+}
+
+export async function syncDutySlipBilling(tripId: string) {
+  const { data } = await apiClient.post<{
+    data: {
+      dutySlip: DutySlip;
+      totalRecoverableInRupees: number;
+      totalKm: number;
+      totalHours: number;
+    };
+  }>(`/trips/${tripId}/duty-slip/sync-billing`);
+  return data.data;
+}
+

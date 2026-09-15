@@ -8,6 +8,7 @@ import { requireEntitlement, enforceUsageLimit } from "../guards/entitlement.gua
 import { requirePermission } from "../guards/rbac.guard";
 import { logTenantAction } from "../audit/audit.service";
 import { triggerAutoWelcome } from "../whatsapp/whatsapp.service";
+import { emitWorkflowEvent } from "../automation/automation.service";
 
 export const enquiriesRouter = Router();
 
@@ -154,11 +155,183 @@ enquiriesRouter.post("/", requirePermission("enquiries", "add"), async (req, res
       console.error("[enquiry:auto-welcome-error]", err);
     });
 
+    // Zero-Touch Workflow Automation Engine Trigger
+    emitWorkflowEvent({
+      clientId: req.clientId!,
+      eventType: "NEW_LEAD_CREATED",
+      targetType: "ENQUIRY",
+      targetId: enquiry.id,
+    }).catch((err) => {
+      console.error("[workflow:NEW_LEAD_CREATED]", err);
+    });
+
     return ok(res, enquiry, "Enquiry created");
   } catch (err) {
     next(err);
   }
 });
+
+// --- Bulk CSV Import ---------------------------------------------------------
+const bulkEnquiryRowSchema = z.object({
+  customerName: z.string().min(1, "Customer name is required"),
+  customerPhone: z.string().min(1, "Customer phone is required"),
+  customerEmail: z.string().email().optional().or(z.literal("")),
+  pickupLocation: z.string().optional(),
+  destination: z.string().optional(),
+  travelDate: z.coerce.date().optional().nullable(),
+  vehicleService: z.string().optional(),
+  notes: z.string().optional(),
+  source: z.string().optional(),
+  status: z.enum(PIPELINE_STAGES).optional(),
+  followUpDate: z.coerce.date().optional().nullable(),
+});
+
+const bulkImportEnquirySchema = z.object({
+  rows: z.array(bulkEnquiryRowSchema).min(1).max(1000),
+  assignTo: z.enum(["NONE", "MANUAL", "ROUND_ROBIN"]).default("NONE"),
+  assignedToId: z.string().optional(),
+  branchId: z.string().optional(),
+});
+
+enquiriesRouter.post("/import", requirePermission("enquiries", "add"), async (req, res, next) => {
+  try {
+    const input = bulkImportEnquirySchema.parse(req.body);
+    const { rows } = input;
+
+    // Enforce monthly plan enquiry quota if specified
+    const plan = (req.client as any).plan;
+    if (plan?.maxEnquiriesPerMonth !== null && plan?.maxEnquiriesPerMonth !== undefined) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const usedThisMonth = await prisma.enquiry.count({
+        where: { clientId: req.clientId!, createdAt: { gte: startOfMonth } },
+      });
+      if (!enforceUsageLimit(plan.maxEnquiriesPerMonth, usedThisMonth + rows.length)) {
+        return fail(
+          res,
+          403,
+          `Importing ${rows.length} leads would exceed your plan limit of ${plan.maxEnquiriesPerMonth} enquiries/month (${usedThisMonth} already used).`,
+          "USAGE_LIMIT_REACHED"
+        );
+      }
+    }
+
+    const creator = await prisma.user.findUnique({ where: { id: req.auth!.sub }, select: { branchId: true } });
+    const targetBranchId = input.branchId ?? creator?.branchId ?? null;
+
+    // Deduplicate/find existing customers by phone under tenant
+    const uniquePhones = Array.from(new Set(rows.map((r) => r.customerPhone.trim()))).filter(Boolean);
+    const existingCustomers = await prisma.customer.findMany({
+      where: { clientId: req.clientId!, phone: { in: uniquePhones } },
+    });
+    const customerMap = new Map<string, string>();
+    existingCustomers.forEach((c) => customerMap.set(c.phone.trim(), c.id));
+
+    let createdCustomersCount = 0;
+    for (const row of rows) {
+      const phone = row.customerPhone.trim();
+      if (!customerMap.has(phone)) {
+        const newCust = await prisma.customer.create({
+          data: {
+            clientId: req.clientId!,
+            name: row.customerName.trim(),
+            phone,
+            email: row.customerEmail?.trim() || null,
+            branchId: targetBranchId,
+          },
+        });
+        customerMap.set(phone, newCust.id);
+        createdCustomersCount++;
+      }
+    }
+
+    // Prepare staff assignment strategy
+    let manualAssigneeId: string | undefined;
+    if (input.assignTo === "MANUAL" && input.assignedToId) {
+      const staffMember = await prisma.user.findFirst({
+        where: { id: input.assignedToId, clientId: req.clientId!, isActive: true },
+      });
+      if (staffMember) manualAssigneeId = staffMember.id;
+    }
+
+    const activeStaff =
+      input.assignTo === "ROUND_ROBIN"
+        ? await prisma.user.findMany({ where: { clientId: req.clientId!, isActive: true }, select: { id: true } })
+        : [];
+    let rrIndex = 0;
+
+    let createdLeadsCount = 0;
+    for (const row of rows) {
+      const customerId = customerMap.get(row.customerPhone.trim());
+      if (!customerId) continue;
+
+      let assignedToId: string | undefined;
+      if (input.assignTo === "MANUAL") {
+        assignedToId = manualAssigneeId;
+      } else if (input.assignTo === "ROUND_ROBIN" && activeStaff.length > 0) {
+        assignedToId = activeStaff[rrIndex % activeStaff.length].id;
+        rrIndex++;
+      }
+
+      const enquiry = await prisma.enquiry.create({
+        data: {
+          clientId: req.clientId!,
+          customerId,
+          source: row.source || row.pickupLocation || "CSV Import",
+          pickupLocation: row.pickupLocation ?? row.source ?? null,
+          destination: row.destination ?? null,
+          travelDate: row.travelDate ?? null,
+          vehicleService: row.vehicleService ?? null,
+          notes: row.notes ?? null,
+          followUpDate: row.followUpDate ?? null,
+          status: row.status && (PIPELINE_STAGES as readonly string[]).includes(row.status) ? row.status : "NEW",
+          assignedToId: assignedToId ?? null,
+          branchId: targetBranchId,
+        },
+      });
+
+      if (assignedToId) {
+        await prisma.followUp.create({
+          data: {
+            clientId: req.clientId!,
+            enquiryId: enquiry.id,
+            loggedById: req.auth!.sub,
+            activityType: "ASSIGNMENT_CHANGE",
+            description: "Assigned via CSV bulk import",
+          },
+        });
+      }
+
+      createdLeadsCount++;
+
+      emitWorkflowEvent({
+        clientId: req.clientId!,
+        eventType: "NEW_LEAD_CREATED",
+        targetType: "ENQUIRY",
+        targetId: enquiry.id,
+      }).catch((err) => {
+        console.error("[workflow:NEW_LEAD_CREATED:csv]", err);
+      });
+    }
+
+    await logTenantAction({
+      clientId: req.clientId!,
+      userId: req.auth!.sub,
+      action: "IMPORT_ENQUIRIES",
+      metadata: { count: createdLeadsCount, newCustomers: createdCustomersCount },
+    });
+
+    return ok(
+      res,
+      { imported: createdLeadsCount, newCustomers: createdCustomersCount },
+      `Successfully imported ${createdLeadsCount} leads (${createdCustomersCount} new customers created)`
+    );
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 // Simplest fair round-robin: pick the active staff user (any role) with
 // the fewest currently-assigned open enquiries. Good enough for Phase 4;
@@ -315,6 +488,18 @@ enquiriesRouter.post("/:id/convert-to-booking", requireEntitlement("bookings"), 
       return created;
     });
     await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "CREATE_BOOKING", target: booking.id, metadata: { enquiryId: enquiry.id } });
+
+    if (booking.status === "CONFIRMED") {
+      emitWorkflowEvent({
+        clientId: req.clientId!,
+        eventType: "BOOKING_CONFIRMED",
+        targetType: "BOOKING",
+        targetId: booking.id,
+      }).catch((err) => {
+        console.error("[workflow:BOOKING_CONFIRMED:convert]", err);
+      });
+    }
+
     return ok(res, booking, "Lead converted to booking");
   } catch (err) {
     next(err);

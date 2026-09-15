@@ -28,6 +28,7 @@ import { ItineraryBuilderPage } from "../pages/itineraries/ItineraryBuilderPage"
 import { PublicItineraryPage } from "../pages/public/PublicItineraryPage";
 import { DriverDutySlipMobilePage } from "../pages/duty-slip/DriverDutySlipMobilePage";
 import { GuestDocumentUploadPage } from "../pages/public/GuestDocumentUploadPage";
+import { PublicLeadCapturePage } from "../pages/public/PublicLeadCapturePage";
 import { BookingsListPage } from "../pages/bookings/BookingsListPage";
 import { BookingDetailPage } from "../pages/bookings/BookingDetailPage";
 import { BookingEditPage } from "../pages/bookings/BookingEditPage";
@@ -69,6 +70,8 @@ export function App() {
               <Route path="/view/:shareSlug" element={<PublicItineraryPage />} />
               <Route path="/duty-slip/:shareToken" element={<DriverDutySlipMobilePage />} />
               <Route path="/upload-docs/:shareToken" element={<GuestDocumentUploadPage />} />
+              <Route path="/lead-form/:clientCode" element={<PublicLeadCapturePage />} />
+              <Route path="/inquiry/:clientCode" element={<PublicLeadCapturePage />} />
               <Route path="/admin/login" element={<SuperAdminLoginPage />} />
               <Route path="/forgot-password" element={<ClientForgotPasswordPage />} />
               <Route path="/admin/forgot-password" element={<AdminForgotPasswordPage />} />

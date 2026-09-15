@@ -2,7 +2,7 @@ import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import { env } from "../config/env";
 import { prisma } from "../db/prisma";
-import { sendMail } from "../email/email.service";
+import { executeRuleAction } from "../automation/automation.service";
 
 const connection = new IORedis(env.redisUrl, { maxRetriesPerRequest: null });
 
@@ -14,6 +14,9 @@ const COOLDOWN_HOURS: Record<string, number> = {
   ENQUIRY_NO_CONTACT_WITHIN_HOURS: 24,
   QUOTATION_NOT_FOLLOWED_UP: 24,
   BOOKING_PAYMENT_OVERDUE: 24,
+  PAYMENT_DUE_REMINDER: 24 * 3,
+  PRE_DEPARTURE_REMINDER: 24 * 7,
+  POST_TRIP_FEEDBACK: 24 * 14,
   VEHICLE_DOCUMENT_EXPIRING: 24 * 7,
 };
 
@@ -25,54 +28,10 @@ async function alreadyFiredRecently(ruleId: string, targetId: string, cooldownHo
   return !!recent;
 }
 
-async function resolveActionRecipientEmail(clientId: string, actionConfig: any, fallbackAssignedToId?: string | null): Promise<string | null> {
-  if (actionConfig.recipient === "SPECIFIC_USER" && actionConfig.userId) {
-    const user = await prisma.user.findFirst({ where: { id: actionConfig.userId, clientId } });
-    return user?.email ?? null;
-  }
-  if (actionConfig.recipient === "ASSIGNED_STAFF" && fallbackAssignedToId) {
-    const user = await prisma.user.findFirst({ where: { id: fallbackAssignedToId, clientId } });
-    return user?.email ?? null;
-  }
-  // Default: the Client Admin.
-  const admin = await prisma.user.findFirst({ where: { clientId, isClientAdmin: true } });
-  return admin?.email ?? null;
-}
-
-async function executeAction(rule: any, targetType: string, targetId: string, context: Record<string, unknown>) {
-  const { actionType, actionConfig, clientId } = rule;
-
-  if (actionType === "EMAIL_STAFF") {
-    const email = await resolveActionRecipientEmail(clientId, actionConfig, context.assignedToId as string | undefined);
-    if (email) {
-      const subject = `[Digiink Automation] ${rule.name}`;
-      const body = `Rule "${rule.name}" triggered for ${targetType.toLowerCase()} ${targetId}.\n\n${JSON.stringify(context, null, 2)}`;
-      await sendMail(email, subject, body);
-    }
-  }
-
-  if (actionType === "CREATE_FOLLOWUP_NOTE" && targetType === "ENQUIRY") {
-    await prisma.followUp.create({
-      data: {
-        clientId, enquiryId: targetId, loggedById: (await prisma.user.findFirst({ where: { clientId, isClientAdmin: true } }))?.id ?? "system",
-        activityType: "NOTE",
-        description: `Automated: ${rule.name}`,
-      },
-    });
-  }
-
-  if (actionType === "REASSIGN_ENQUIRY" && targetType === "ENQUIRY" && actionConfig.toUserId) {
-    await prisma.enquiry.update({ where: { id: targetId }, data: { assignedToId: actionConfig.toUserId } });
-  }
-
-  await prisma.automationLog.create({
-    data: { clientId, ruleId: rule.id, targetType, targetId, message: `${rule.triggerType} -> ${rule.actionType}` },
-  });
-}
-
 async function evaluateRule(rule: any) {
   const cooldown = COOLDOWN_HOURS[rule.triggerType] ?? 24;
 
+  // 1. Lead Uncontacted Escalation
   if (rule.triggerType === "ENQUIRY_NO_CONTACT_WITHIN_HOURS") {
     const hours = Number(rule.triggerConfig.hours ?? 2);
     const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
@@ -85,10 +44,11 @@ async function evaluateRule(rule: any) {
     for (const enquiry of candidates) {
       if (enquiry.followUps.length > 0) continue; // already contacted
       if (await alreadyFiredRecently(rule.id, enquiry.id, cooldown)) continue;
-      await executeAction(rule, "ENQUIRY", enquiry.id, { destination: enquiry.destination, assignedToId: enquiry.assignedToId, ageHours: hours });
+      await executeRuleAction(rule, "ENQUIRY", enquiry.id, { destination: enquiry.destination, assignedToId: enquiry.assignedToId, ageHours: hours });
     }
   }
 
+  // 2. Quotation Follow-up Reminder
   if (rule.triggerType === "QUOTATION_NOT_FOLLOWED_UP") {
     const days = Number(rule.triggerConfig.days ?? 3);
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -100,10 +60,11 @@ async function evaluateRule(rule: any) {
 
     for (const q of candidates) {
       if (await alreadyFiredRecently(rule.id, q.id, cooldown)) continue;
-      await executeAction(rule, "QUOTATION", q.id, { version: q.version, assignedToId: q.enquiry.assignedToId, daysSinceSent: days });
+      await executeRuleAction(rule, "QUOTATION", q.id, { version: q.version, assignedToId: q.enquiry.assignedToId, daysSinceSent: days });
     }
   }
 
+  // 3. Payment Overdue Reminder
   if (rule.triggerType === "BOOKING_PAYMENT_OVERDUE") {
     const bookings = await prisma.booking.findMany({
       where: { clientId: rule.clientId, status: { not: "CANCELLED" }, paymentDueDate: { lt: new Date() } },
@@ -114,10 +75,74 @@ async function evaluateRule(rule: any) {
       const paid = b.payments.reduce((sum, p) => sum + p.amountInPaise, 0);
       if (paid >= b.amountInPaise) continue; // fully paid
       if (await alreadyFiredRecently(rule.id, b.id, cooldown)) continue;
-      await executeAction(rule, "BOOKING", b.id, { pendingInPaise: b.amountInPaise - paid, dueDate: b.paymentDueDate });
+      await executeRuleAction(rule, "BOOKING", b.id, { pendingInPaise: b.amountInPaise - paid, dueDate: b.paymentDueDate });
     }
   }
 
+  // 4. Payment Balance Due Reminder (X days before due date)
+  if (rule.triggerType === "PAYMENT_DUE_REMINDER") {
+    const days = Number(rule.triggerConfig.days ?? 3);
+    const windowStart = new Date();
+    const windowEnd = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        clientId: rule.clientId,
+        status: { in: ["CONFIRMED", "IN_PROGRESS"] },
+        paymentDueDate: { gte: windowStart, lte: windowEnd },
+      },
+      include: { payments: { select: { amountInPaise: true } } },
+    });
+
+    for (const b of bookings) {
+      const paid = b.payments.reduce((sum, p) => sum + p.amountInPaise, 0);
+      if (paid >= b.amountInPaise) continue; // already paid in full
+      if (await alreadyFiredRecently(rule.id, b.id, cooldown)) continue;
+      await executeRuleAction(rule, "BOOKING", b.id, { pendingInPaise: b.amountInPaise - paid, dueDate: b.paymentDueDate });
+    }
+  }
+
+  // 5. Pre-Departure Traveler Briefing (X days before trip)
+  if (rule.triggerType === "PRE_DEPARTURE_REMINDER") {
+    const days = Number(rule.triggerConfig.days ?? 2);
+    const windowStart = new Date();
+    const windowEnd = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        clientId: rule.clientId,
+        status: { in: ["CONFIRMED", "IN_PROGRESS"] },
+        travelStart: { gte: windowStart, lte: windowEnd },
+      },
+    });
+
+    for (const b of bookings) {
+      if (await alreadyFiredRecently(rule.id, b.id, cooldown)) continue;
+      await executeRuleAction(rule, "BOOKING", b.id, { daysBeforeDeparture: days });
+    }
+  }
+
+  // 6. Post-Trip Feedback & Review Request (X days after trip completion)
+  if (rule.triggerType === "POST_TRIP_FEEDBACK") {
+    const days = Number(rule.triggerConfig.days ?? 1);
+    const cutoffRecent = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const cutoffOldest = new Date(Date.now() - (days + 3) * 24 * 60 * 60 * 1000);
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        clientId: rule.clientId,
+        status: { in: ["COMPLETED", "CONFIRMED"] },
+        travelEnd: { lte: cutoffRecent, gte: cutoffOldest },
+      },
+    });
+
+    for (const b of bookings) {
+      if (await alreadyFiredRecently(rule.id, b.id, cooldown)) continue;
+      await executeRuleAction(rule, "BOOKING", b.id, { daysAfterTrip: days });
+    }
+  }
+
+  // 7. Vehicle Document Expiring Alert
   if (rule.triggerType === "VEHICLE_DOCUMENT_EXPIRING") {
     const days = Number(rule.triggerConfig.days ?? 30);
     const cutoff = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
@@ -129,13 +154,14 @@ async function evaluateRule(rule: any) {
           { rcExpiry: { lte: cutoff } },
           { insuranceExpiry: { lte: cutoff } },
           { permitExpiry: { lte: cutoff } },
+          { fitnessExpiry: { lte: cutoff } },
         ],
       },
     });
 
     for (const v of vehicles) {
       if (await alreadyFiredRecently(rule.id, v.id, cooldown)) continue;
-      await executeAction(rule, "VEHICLE", v.id, { registrationNumber: v.registrationNumber });
+      await executeRuleAction(rule, "VEHICLE", v.id, { registrationNumber: v.registrationNumber });
     }
   }
 }

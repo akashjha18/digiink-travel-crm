@@ -7,6 +7,7 @@ import { scopeTenant } from "../guards/tenant-scope.guard";
 import { requireEntitlement } from "../guards/entitlement.guard";
 import { requirePermission } from "../guards/rbac.guard";
 import { logTenantAction } from "../audit/audit.service";
+import { emitWorkflowEvent } from "../automation/automation.service";
 
 export const quotationsRouter = Router();
 
@@ -255,6 +256,15 @@ quotationsRouter.post("/:id/convert-to-booking", requireEntitlement("bookings"),
       data: { clientId: req.clientId!, enquiryId: quotation.enquiryId, loggedById: req.auth!.sub, activityType: "STATUS_CHANGE", description: `Converted to booking` },
     });
     await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "CREATE_BOOKING", target: booking.id, metadata: { quotationId: quotation.id } });
+
+    emitWorkflowEvent({
+      clientId: req.clientId!,
+      eventType: "BOOKING_CONFIRMED",
+      targetType: "BOOKING",
+      targetId: booking.id,
+    }).catch((err) => {
+      console.error("[workflow:BOOKING_CONFIRMED:quotation]", err);
+    });
 
     return ok(res, booking, "Booking created");
   } catch (err) {

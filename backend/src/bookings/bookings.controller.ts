@@ -7,6 +7,7 @@ import { scopeTenant } from "../guards/tenant-scope.guard";
 import { requireEntitlement } from "../guards/entitlement.guard";
 import { requirePermission } from "../guards/rbac.guard";
 import { logTenantAction } from "../audit/audit.service";
+import { emitWorkflowEvent } from "../automation/automation.service";
 
 export const bookingsRouter = Router();
 
@@ -64,6 +65,18 @@ bookingsRouter.patch("/:id/status", requirePermission("bookings", "edit"), async
 
     const booking = await prisma.booking.update({ where: { id: req.params.id }, data: { status } });
     await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "UPDATE_BOOKING_STATUS", target: booking.id, metadata: { from: existing.status, to: status } });
+
+    if (status === "CONFIRMED" && existing.status !== "CONFIRMED") {
+      emitWorkflowEvent({
+        clientId: req.clientId!,
+        eventType: "BOOKING_CONFIRMED",
+        targetType: "BOOKING",
+        targetId: booking.id,
+      }).catch((err) => {
+        console.error("[workflow:BOOKING_CONFIRMED:status]", err);
+      });
+    }
+
     return ok(res, booking, "Booking status updated");
   } catch (err) {
     next(err);
@@ -144,6 +157,18 @@ bookingsRouter.patch("/:id", requirePermission("bookings", "edit"), async (req, 
     });
 
     await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "UPDATE_BOOKING", target: booking.id });
+
+    if (status === "CONFIRMED" && existing.status !== "CONFIRMED") {
+      emitWorkflowEvent({
+        clientId: req.clientId!,
+        eventType: "BOOKING_CONFIRMED",
+        targetType: "BOOKING",
+        targetId: booking.id,
+      }).catch((err) => {
+        console.error("[workflow:BOOKING_CONFIRMED:update]", err);
+      });
+    }
+
     return ok(res, booking, "Booking updated");
   } catch (err) {
     next(err);

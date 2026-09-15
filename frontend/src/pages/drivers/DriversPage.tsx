@@ -22,6 +22,9 @@ import {
   IconButton,
   Tooltip,
   CircularProgress,
+  MenuItem,
+  Grid,
+  Divider,
 } from "@mui/material";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
@@ -31,18 +34,85 @@ import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
 import DirectionsCarRoundedIcon from "@mui/icons-material/DirectionsCarRounded";
 import AssignmentIndRoundedIcon from "@mui/icons-material/AssignmentIndRounded";
 import CreditCardRoundedIcon from "@mui/icons-material/CreditCardRounded";
+import VerifiedUserRoundedIcon from "@mui/icons-material/VerifiedUserRounded";
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
+import LocalHospitalRoundedIcon from "@mui/icons-material/LocalHospitalRounded";
+import ContactEmergencyRoundedIcon from "@mui/icons-material/ContactEmergencyRounded";
 import { apiClient } from "../../api/client";
+
+interface DriverFormData {
+  name: string;
+  contact: string;
+  emergencyContact: string;
+  bloodGroup: string;
+  licenseNumber: string;
+  licenseExpiry: string;
+  badgeNumber: string;
+  badgeExpiry: string;
+  policeVerificationStatus: "VERIFIED" | "PENDING" | "EXPIRED" | "NOT_DONE";
+  policeVerificationDate: string;
+  medicalFitnessExpiry: string;
+}
+
+const initialForm: DriverFormData = {
+  name: "",
+  contact: "",
+  emergencyContact: "",
+  bloodGroup: "",
+  licenseNumber: "",
+  licenseExpiry: "",
+  badgeNumber: "",
+  badgeExpiry: "",
+  policeVerificationStatus: "PENDING",
+  policeVerificationDate: "",
+  medicalFitnessExpiry: "",
+};
+
+function getExpiryMeta(dateStr?: string | null) {
+  if (!dateStr) return { label: "Not Recorded", color: "#64748b", bg: "#f1f5f9", status: "MISSING" };
+  const target = new Date(dateStr).getTime();
+  const now = Date.now();
+  const days = Math.ceil((target - now) / 86400000);
+
+  if (days < 0) {
+    return {
+      label: `Expired (${Math.abs(days)}d ago)`,
+      color: "#b91c1c",
+      bg: "#fee2e2",
+      border: "#fca5a5",
+      status: "EXPIRED",
+    };
+  }
+  if (days <= 30) {
+    return {
+      label: `Expiring in ${days}d`,
+      color: "#c2410c",
+      bg: "#ffedd5",
+      border: "#fdba74",
+      status: "EXPIRING_SOON",
+    };
+  }
+  return {
+    label: new Date(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+    color: "#047857",
+    bg: "#ecfdf5",
+    border: "#a7f3d0",
+    status: "VALID",
+  };
+}
 
 export function DriversPage() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [editingDriver, setEditingDriver] = useState<any | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [form, setForm] = useState({ name: "", licenseNumber: "", contact: "" });
+  const [form, setForm] = useState<DriverFormData>(initialForm);
 
   function load() {
     setLoading(true);
@@ -57,15 +127,59 @@ export function DriversPage() {
     load();
   }, []);
 
-  async function handleCreate() {
+  function handleOpenCreate() {
+    setEditingDriver(null);
+    setForm(initialForm);
+    setOpen(true);
+  }
+
+  function handleOpenEdit(driver: any) {
+    setEditingDriver(driver);
+    setForm({
+      name: driver.name || "",
+      contact: driver.contact || "",
+      emergencyContact: driver.emergencyContact || "",
+      bloodGroup: driver.bloodGroup || "",
+      licenseNumber: driver.licenseNumber || "",
+      licenseExpiry: driver.licenseExpiry ? driver.licenseExpiry.slice(0, 10) : "",
+      badgeNumber: driver.badgeNumber || "",
+      badgeExpiry: driver.badgeExpiry ? driver.badgeExpiry.slice(0, 10) : "",
+      policeVerificationStatus: driver.policeVerificationStatus || "PENDING",
+      policeVerificationDate: driver.policeVerificationDate ? driver.policeVerificationDate.slice(0, 10) : "",
+      medicalFitnessExpiry: driver.medicalFitnessExpiry ? driver.medicalFitnessExpiry.slice(0, 10) : "",
+    });
+    setOpen(true);
+  }
+
+  async function handleSave() {
     try {
-      setCreating(true);
-      await apiClient.post("/drivers", form);
+      setSaving(true);
+      const payload: any = {
+        name: form.name.trim(),
+        contact: form.contact.trim(),
+        emergencyContact: form.emergencyContact.trim() || null,
+        bloodGroup: form.bloodGroup.trim() || null,
+        licenseNumber: form.licenseNumber.trim(),
+        licenseExpiry: form.licenseExpiry ? new Date(form.licenseExpiry).toISOString() : null,
+        badgeNumber: form.badgeNumber.trim() || null,
+        badgeExpiry: form.badgeExpiry ? new Date(form.badgeExpiry).toISOString() : null,
+        policeVerificationStatus: form.policeVerificationStatus,
+        policeVerificationDate: form.policeVerificationDate ? new Date(form.policeVerificationDate).toISOString() : null,
+        medicalFitnessExpiry: form.medicalFitnessExpiry ? new Date(form.medicalFitnessExpiry).toISOString() : null,
+      };
+
+      if (editingDriver) {
+        await apiClient.patch(`/drivers/${editingDriver.id}`, payload);
+      } else {
+        await apiClient.post("/drivers", payload);
+      }
+
       setOpen(false);
-      setForm({ name: "", licenseNumber: "", contact: "" });
+      setEditingDriver(null);
+      setForm(initialForm);
       load();
     } finally {
-      setCreating(false);
+      setSaving(false);
     }
   }
 
@@ -87,8 +201,9 @@ export function DriversPage() {
       const name = d.name?.toLowerCase() ?? "";
       const license = d.licenseNumber?.toLowerCase() ?? "";
       const contact = d.contact?.toLowerCase() ?? "";
+      const badge = d.badgeNumber?.toLowerCase() ?? "";
       const vehicles = d.vehicles?.map((v: any) => v.registrationNumber).join(" ").toLowerCase() ?? "";
-      return name.includes(q) || license.includes(q) || contact.includes(q) || vehicles.includes(q);
+      return name.includes(q) || license.includes(q) || contact.includes(q) || badge.includes(q) || vehicles.includes(q);
     });
   }, [drivers, searchQuery]);
 
@@ -98,7 +213,11 @@ export function DriversPage() {
   }, [filteredDrivers, page, rowsPerPage]);
 
   const availableCount = drivers.filter((d) => d.isAvailable).length;
-  const inDutyCount = drivers.length - availableCount;
+  const verifiedCount = drivers.filter((d) => d.policeVerificationStatus === "VERIFIED").length;
+  const licenseAttentionCount = drivers.filter((d) => {
+    const meta = getExpiryMeta(d.licenseExpiry);
+    return meta.status === "EXPIRED" || meta.status === "EXPIRING_SOON";
+  }).length;
   const assignedCount = drivers.filter((d) => d.vehicles && d.vehicles.length > 0).length;
 
   return (
@@ -115,7 +234,7 @@ export function DriversPage() {
         <Box>
           <Box display="flex" alignItems="center" gap={1.5}>
             <Typography variant="h4" fontWeight={900} sx={{ color: "#0f172a", letterSpacing: "-0.03em" }}>
-              Driver Personnel
+              Driver Personnel & Chauffeur Readiness
             </Typography>
             <Chip
               label={`${availableCount}/${drivers.length} Available`}
@@ -132,14 +251,14 @@ export function DriversPage() {
             />
           </Box>
           <Typography variant="body2" color="text.secondary" mt={0.5}>
-            Manage chauffeurs, valid license credentials, contact details, and live dispatch availability.
+            Manage chauffeurs, commercial DL expiry, tourist badges, police verification, and dispatch safety.
           </Typography>
         </Box>
 
         <Button
           variant="contained"
           startIcon={<AddRoundedIcon />}
-          onClick={() => setOpen(true)}
+          onClick={handleOpenCreate}
           sx={{
             background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
             borderRadius: 2.5,
@@ -154,7 +273,7 @@ export function DriversPage() {
             },
           }}
         >
-          Add Driver
+          Add Chauffeur
         </Button>
       </Box>
 
@@ -181,7 +300,7 @@ export function DriversPage() {
           </Avatar>
           <Box>
             <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Total Roster
+              Total Chauffeurs
             </Typography>
             <Typography variant="h5" fontWeight={900} color="#0f172a">
               {drivers.length}
@@ -224,15 +343,15 @@ export function DriversPage() {
             gap: 2,
           }}
         >
-          <Avatar sx={{ bgcolor: "rgba(249, 115, 22, 0.1)", color: "#f97316", borderRadius: 2.5, width: 44, height: 44 }}>
-            <DirectionsCarRoundedIcon />
+          <Avatar sx={{ bgcolor: "rgba(22, 163, 74, 0.1)", color: "#16a34a", borderRadius: 2.5, width: 44, height: 44 }}>
+            <VerifiedUserRoundedIcon />
           </Avatar>
           <Box>
             <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              On Transit / Busy
+              Police Verified
             </Typography>
-            <Typography variant="h5" fontWeight={900} color="#0f172a">
-              {inDutyCount}
+            <Typography variant="h5" fontWeight={900} color="#16a34a">
+              {verifiedCount}
             </Typography>
           </Box>
         </Paper>
@@ -240,23 +359,31 @@ export function DriversPage() {
         <Paper
           sx={{
             p: 2.25,
-            border: "1px solid #e2e8f0",
+            border: `1px solid ${licenseAttentionCount > 0 ? "#fecaca" : "#e2e8f0"}`,
             borderRadius: 3,
-            bgcolor: "#ffffff",
+            bgcolor: licenseAttentionCount > 0 ? "#fff5f5" : "#ffffff",
             display: "flex",
             alignItems: "center",
             gap: 2,
           }}
         >
-          <Avatar sx={{ bgcolor: "rgba(147, 51, 234, 0.1)", color: "#9333ea", borderRadius: 2.5, width: 44, height: 44 }}>
-            <CreditCardRoundedIcon />
+          <Avatar
+            sx={{
+              bgcolor: licenseAttentionCount > 0 ? "rgba(239, 68, 68, 0.15)" : "rgba(147, 51, 234, 0.1)",
+              color: licenseAttentionCount > 0 ? "#dc2626" : "#9333ea",
+              borderRadius: 2.5,
+              width: 44,
+              height: 44,
+            }}
+          >
+            <WarningAmberRoundedIcon />
           </Avatar>
           <Box>
-            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Vehicle Paired
+            <Typography variant="caption" color={licenseAttentionCount > 0 ? "#b91c1c" : "text.secondary"} fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              License Attention
             </Typography>
-            <Typography variant="h5" fontWeight={900} color="#0f172a">
-              {assignedCount}
+            <Typography variant="h5" fontWeight={900} color={licenseAttentionCount > 0 ? "#dc2626" : "#0f172a"}>
+              {licenseAttentionCount}
             </Typography>
           </Box>
         </Paper>
@@ -279,7 +406,7 @@ export function DriversPage() {
       >
         <TextField
           size="small"
-          placeholder="Search by driver name, license, contact, vehicle plate..."
+          placeholder="Search by chauffeur name, DL number, mobile, badge, vehicle plate..."
           value={searchQuery}
           onChange={(e) => {
             setSearchQuery(e.target.value);
@@ -293,7 +420,7 @@ export function DriversPage() {
             ),
           }}
           sx={{
-            flex: { xs: "1 1 100%", sm: "0 1 380px" },
+            flex: { xs: "1 1 100%", sm: "0 1 420px" },
             "& .MuiOutlinedInput-root": {
               borderRadius: 2,
               bgcolor: "#f8fafc",
@@ -330,23 +457,26 @@ export function DriversPage() {
           boxShadow: "0 4px 16px rgba(16, 24, 40, 0.03)",
         }}
       >
-        <Table sx={{ minWidth: 750 }}>
+        <Table sx={{ minWidth: 900 }}>
           <TableHead sx={{ bgcolor: "#fafcff" }}>
             <TableRow sx={{ borderBottom: "1px solid #eef2f6" }}>
               <TableCell sx={{ fontWeight: 800, color: "#64748b", py: 2.2, px: 3, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
-                DRIVER PROFILE
+                CHAUFFEUR PROFILE
               </TableCell>
               <TableCell sx={{ fontWeight: 800, color: "#64748b", py: 2.2, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
-                LICENSE NO.
+                COMMERCIAL DL & EXPIRY
               </TableCell>
               <TableCell sx={{ fontWeight: 800, color: "#64748b", py: 2.2, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
-                CONTACT NUMBER
+                POLICE VERIFICATION
               </TableCell>
               <TableCell sx={{ fontWeight: 800, color: "#64748b", py: 2.2, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
-                MAPPED VEHICLES
+                CONTACT / EMERGENCY
+              </TableCell>
+              <TableCell sx={{ fontWeight: 800, color: "#64748b", py: 2.2, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
+                MAPPED FLEET
               </TableCell>
               <TableCell align="right" sx={{ fontWeight: 800, color: "#64748b", py: 2.2, px: 3, fontSize: "0.75rem", letterSpacing: "0.06em" }}>
-                DISPATCH AVAILABILITY
+                DISPATCH / ACTIONS
               </TableCell>
             </TableRow>
           </TableHead>
@@ -354,6 +484,8 @@ export function DriversPage() {
           <TableBody>
             {paginatedDrivers.map((d) => {
               const isToggling = togglingId === d.id;
+              const dlMeta = getExpiryMeta(d.licenseExpiry);
+              const isPoliceVerified = d.policeVerificationStatus === "VERIFIED";
 
               return (
                 <TableRow
@@ -370,57 +502,131 @@ export function DriversPage() {
                     <Box display="flex" alignItems="center" gap={1.75}>
                       <Avatar
                         sx={{
-                          width: 38,
-                          height: 38,
+                          width: 40,
+                          height: 40,
                           bgcolor: "#eff6ff",
-                          color: "#2563eb",
-                          fontSize: "0.85rem",
+                          color: "#0284c7",
+                          fontSize: "0.9rem",
                           fontWeight: 800,
-                          borderRadius: 2,
+                          borderRadius: 2.5,
                         }}
                       >
                         {d.name?.[0]?.toUpperCase() || <BadgeRoundedIcon fontSize="small" />}
                       </Avatar>
                       <Box>
-                        <Typography variant="body2" fontWeight={800} sx={{ color: "#0f172a" }}>
-                          {d.name}
-                        </Typography>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Typography variant="body2" fontWeight={800} sx={{ color: "#0f172a" }}>
+                            {d.name}
+                          </Typography>
+                          {d.bloodGroup && (
+                            <Chip
+                              label={d.bloodGroup}
+                              size="small"
+                              sx={{
+                                height: 18,
+                                fontSize: "0.65rem",
+                                fontWeight: 800,
+                                bgcolor: "#fee2e2",
+                                color: "#b91c1c",
+                                borderRadius: "4px",
+                              }}
+                            />
+                          )}
+                        </Box>
                         <Typography variant="caption" color="text.secondary">
-                          Driver ID #{d.id?.slice(-6).toUpperCase() ?? "REC"}
+                          Chauffeur #{d.id?.slice(-6).toUpperCase() ?? "REC"}
+                          {d.badgeNumber && ` • Badge: ${d.badgeNumber}`}
                         </Typography>
                       </Box>
                     </Box>
                   </TableCell>
 
-                  {/* License */}
+                  {/* DL & Expiry */}
                   <TableCell sx={{ py: 2 }}>
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <CreditCardRoundedIcon sx={{ fontSize: 16, color: "#94a3b8" }} />
-                      <Typography
-                        variant="body2"
-                        fontFamily="monospace"
-                        fontWeight={700}
+                    <Box display="flex" flexDirection="column" gap={0.5}>
+                      <Box display="flex" alignItems="center" gap={0.75}>
+                        <CreditCardRoundedIcon sx={{ fontSize: 16, color: "#94a3b8" }} />
+                        <Typography
+                          variant="body2"
+                          fontFamily="monospace"
+                          fontWeight={700}
+                          sx={{
+                            bgcolor: "#f1f5f9",
+                            px: 1,
+                            py: 0.2,
+                            borderRadius: 1.5,
+                            color: "#1e293b",
+                            fontSize: "0.78rem",
+                          }}
+                        >
+                          {d.licenseNumber || "N/A"}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        size="small"
+                        label={`DL: ${dlMeta.label}`}
                         sx={{
-                          bgcolor: "#f1f5f9",
-                          px: 1,
-                          py: 0.25,
-                          borderRadius: 1.5,
-                          color: "#1e293b",
-                          fontSize: "0.8rem",
+                          height: 20,
+                          width: "fit-content",
+                          fontSize: "0.68rem",
+                          fontWeight: 700,
+                          bgcolor: dlMeta.bg,
+                          color: dlMeta.color,
+                          border: dlMeta.border ? `1px solid ${dlMeta.border}` : "none",
                         }}
-                      >
-                        {d.licenseNumber || "N/A"}
-                      </Typography>
+                      />
                     </Box>
                   </TableCell>
 
-                  {/* Contact */}
+                  {/* Police Verification */}
                   <TableCell sx={{ py: 2 }}>
-                    <Box display="flex" alignItems="center" gap={0.75}>
-                      <PhoneRoundedIcon sx={{ fontSize: 15, color: "#94a3b8" }} />
-                      <Typography variant="body2" fontWeight={600} color="#334155">
-                        {d.contact || "—"}
-                      </Typography>
+                    <Box display="flex" flexDirection="column" gap={0.5}>
+                      <Chip
+                        icon={isPoliceVerified ? <VerifiedUserRoundedIcon style={{ fontSize: 14 }} /> : <WarningAmberRoundedIcon style={{ fontSize: 14 }} />}
+                        size="small"
+                        label={
+                          d.policeVerificationStatus === "VERIFIED"
+                            ? "Verified by Police"
+                            : d.policeVerificationStatus === "EXPIRED"
+                            ? "Verification Expired"
+                            : "Verification Pending"
+                        }
+                        sx={{
+                          height: 22,
+                          width: "fit-content",
+                          fontSize: "0.7rem",
+                          fontWeight: 700,
+                          bgcolor: isPoliceVerified ? "#ecfdf5" : d.policeVerificationStatus === "EXPIRED" ? "#fee2e2" : "#fef3c7",
+                          color: isPoliceVerified ? "#047857" : d.policeVerificationStatus === "EXPIRED" ? "#b91c1c" : "#b45309",
+                          border: `1px solid ${isPoliceVerified ? "#a7f3d0" : d.policeVerificationStatus === "EXPIRED" ? "#fca5a5" : "#fde68a"}`,
+                        }}
+                      />
+                      {d.medicalFitnessExpiry && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                          <LocalHospitalRoundedIcon sx={{ fontSize: 12, color: "#0284c7" }} />
+                          Med: {new Date(d.medicalFitnessExpiry).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}
+                        </Typography>
+                      )}
+                    </Box>
+                  </TableCell>
+
+                  {/* Contact & Emergency */}
+                  <TableCell sx={{ py: 2 }}>
+                    <Box display="flex" flexDirection="column" gap={0.25}>
+                      <Box display="flex" alignItems="center" gap={0.75}>
+                        <PhoneRoundedIcon sx={{ fontSize: 15, color: "#94a3b8" }} />
+                        <Typography variant="body2" fontWeight={600} color="#334155">
+                          {d.contact || "—"}
+                        </Typography>
+                      </Box>
+                      {d.emergencyContact && (
+                        <Box display="flex" alignItems="center" gap={0.5}>
+                          <ContactEmergencyRoundedIcon sx={{ fontSize: 13, color: "#dc2626" }} />
+                          <Typography variant="caption" color="text.secondary">
+                            ICE: {d.emergencyContact}
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
                   </TableCell>
 
@@ -453,11 +659,11 @@ export function DriversPage() {
                     )}
                   </TableCell>
 
-                  {/* Availability Switch */}
+                  {/* Availability Switch & Actions */}
                   <TableCell align="right" sx={{ py: 2, px: 3 }}>
-                    <Box display="inline-flex" alignItems="center" gap={1}>
+                    <Box display="inline-flex" alignItems="center" gap={1.25}>
                       {isToggling ? (
-                        <CircularProgress size={18} sx={{ color: "#2563eb", mr: 1 }} />
+                        <CircularProgress size={18} sx={{ color: "#0284c7" }} />
                       ) : (
                         <Switch
                           size="small"
@@ -481,17 +687,30 @@ export function DriversPage() {
                       )}
                       <Chip
                         size="small"
-                        label={d.isAvailable ? "Available" : "Busy / Off"}
+                        label={d.isAvailable ? "Ready" : "Off Duty"}
                         sx={{
                           fontWeight: 700,
-                          fontSize: "0.72rem",
+                          fontSize: "0.7rem",
                           borderRadius: "6px",
                           bgcolor: d.isAvailable ? "#ecfdf5" : "#f1f5f9",
                           color: d.isAvailable ? "#047857" : "#64748b",
                           border: `1px solid ${d.isAvailable ? "#a7f3d0" : "#e2e8f0"}`,
-                          minWidth: 84,
+                          minWidth: 68,
                         }}
                       />
+                      <Tooltip title="Edit Driver & Compliance Records">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenEdit(d)}
+                          sx={{
+                            bgcolor: "#f8fafc",
+                            border: "1px solid #e2e8f0",
+                            "&:hover": { bgcolor: "#f1f5f9", color: "#0284c7" },
+                          }}
+                        >
+                          <EditRoundedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                   </TableCell>
                 </TableRow>
@@ -500,26 +719,26 @@ export function DriversPage() {
 
             {filteredDrivers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} sx={{ py: 8, textAlign: "center" }}>
+                <TableCell colSpan={6} sx={{ py: 8, textAlign: "center" }}>
                   <Box display="flex" flexDirection="column" alignItems="center" gap={1}>
                     <Avatar
                       sx={{
                         width: 48,
                         height: 48,
                         bgcolor: "#eff6ff",
-                        color: "#2563eb",
+                        color: "#0284c7",
                         mb: 0.5,
                       }}
                     >
                       <AssignmentIndRoundedIcon fontSize="medium" />
                     </Avatar>
                     <Typography variant="body1" fontWeight={700} sx={{ color: "#0f172a" }}>
-                      {searchQuery ? "No matching driver records found" : "No drivers registered yet"}
+                      {searchQuery ? "No matching chauffeur records found" : "No chauffeurs registered yet"}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       {searchQuery
                         ? "Check your query for spelling or clear search filters."
-                        : "Start adding drivers to allocate personnel to bookings and fleet dispatches."}
+                        : "Start adding drivers to track commercial licenses, police verifications, and allocate to trip dispatches."}
                     </Typography>
                   </Box>
                 </TableCell>
@@ -543,79 +762,214 @@ export function DriversPage() {
         />
       </Paper>
 
-      {/* Add Driver Modal */}
+      {/* Add / Edit Driver Modal */}
       <Dialog
         open={open}
-        onClose={() => !creating && setOpen(false)}
+        onClose={() => !saving && setOpen(false)}
         fullWidth
-        maxWidth="sm"
+        maxWidth="md"
         PaperProps={{ sx: { borderRadius: 3.5, p: 1 } }}
       >
-        <DialogTitle sx={{ fontWeight: 900, color: "#0f172a", pb: 1 }}>
-          Register Driver Personnel
+        <DialogTitle sx={{ fontWeight: 900, color: "#0f172a", pb: 1, display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Avatar sx={{ bgcolor: "rgba(2, 132, 199, 0.1)", color: "#0284c7", width: 36, height: 36, borderRadius: 2 }}>
+            <BadgeRoundedIcon fontSize="small" />
+          </Avatar>
+          {editingDriver ? "Edit Chauffeur & Compliance Records" : "Register New Chauffeur"}
         </DialogTitle>
 
-        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: "10px !important" }}>
-          <TextField
-            size="small"
-            label="Full Name"
-            placeholder="e.g. Ramesh Kumar"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-            fullWidth
-            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
-          />
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: "14px !important" }}>
+          <Typography variant="caption" fontWeight={700} color="#0284c7" sx={{ textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            1. Personal & Contact Information
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                size="small"
+                label="Full Name"
+                placeholder="e.g. Ramesh Kumar Sharma"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+                fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                size="small"
+                label="Primary Mobile Contact"
+                placeholder="e.g. +91 9876543210"
+                value={form.contact}
+                onChange={(e) => setForm({ ...form, contact: e.target.value })}
+                required
+                fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                size="small"
+                label="Emergency Contact (ICE)"
+                placeholder="e.g. Brother: +91 9811223344"
+                value={form.emergencyContact}
+                onChange={(e) => setForm({ ...form, emergencyContact: e.target.value })}
+                fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                size="small"
+                select
+                label="Blood Group"
+                value={form.bloodGroup}
+                onChange={(e) => setForm({ ...form, bloodGroup: e.target.value })}
+                fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              >
+                <MenuItem value="">Not Specified</MenuItem>
+                {["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].map((bg) => (
+                  <MenuItem key={bg} value={bg}>
+                    {bg}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+          </Grid>
 
-          <TextField
-            size="small"
-            label="Driving License Number"
-            placeholder="e.g. DL-0420110012345"
-            value={form.licenseNumber}
-            onChange={(e) => setForm({ ...form, licenseNumber: e.target.value })}
-            required
-            fullWidth
-            sx={{
-              "& .MuiOutlinedInput-root": { borderRadius: 2 },
-              "& input": { textTransform: "uppercase" },
-            }}
-          />
+          <Divider sx={{ my: 0.5 }} />
 
-          <TextField
-            size="small"
-            label="Contact Mobile"
-            placeholder="e.g. +91 9876543210"
-            value={form.contact}
-            onChange={(e) => setForm({ ...form, contact: e.target.value })}
-            required
-            fullWidth
-            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
-          />
+          <Typography variant="caption" fontWeight={700} color="#0284c7" sx={{ textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            2. Statutory License & Commercial Badge
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                size="small"
+                label="Driving License (DL) Number"
+                placeholder="e.g. DL-0420110012345"
+                value={form.licenseNumber}
+                onChange={(e) => setForm({ ...form, licenseNumber: e.target.value })}
+                required
+                fullWidth
+                sx={{
+                  "& .MuiOutlinedInput-root": { borderRadius: 2 },
+                  "& input": { textTransform: "uppercase", fontFamily: "monospace" },
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                size="small"
+                type="date"
+                label="DL Expiry Date"
+                InputLabelProps={{ shrink: true }}
+                value={form.licenseExpiry}
+                onChange={(e) => setForm({ ...form, licenseExpiry: e.target.value })}
+                fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                size="small"
+                label="RTO Commercial Badge No."
+                placeholder="e.g. BDG-DL-8874"
+                value={form.badgeNumber}
+                onChange={(e) => setForm({ ...form, badgeNumber: e.target.value })}
+                fullWidth
+                sx={{
+                  "& .MuiOutlinedInput-root": { borderRadius: 2 },
+                  "& input": { textTransform: "uppercase" },
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                size="small"
+                type="date"
+                label="Badge Expiry Date"
+                InputLabelProps={{ shrink: true }}
+                value={form.badgeExpiry}
+                onChange={(e) => setForm({ ...form, badgeExpiry: e.target.value })}
+                fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Grid>
+          </Grid>
+
+          <Divider sx={{ my: 0.5 }} />
+
+          <Typography variant="caption" fontWeight={700} color="#0284c7" sx={{ textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            3. Police Verification & Medical Fitness
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                size="small"
+                select
+                label="Police Verification Status"
+                value={form.policeVerificationStatus}
+                onChange={(e) => setForm({ ...form, policeVerificationStatus: e.target.value as any })}
+                fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              >
+                <MenuItem value="VERIFIED">VERIFIED (Clear Police Record)</MenuItem>
+                <MenuItem value="PENDING">PENDING (Verification In Progress)</MenuItem>
+                <MenuItem value="EXPIRED">EXPIRED (Needs Periodic Renewal)</MenuItem>
+                <MenuItem value="NOT_DONE">NOT DONE</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                size="small"
+                type="date"
+                label="Police Verification Date"
+                InputLabelProps={{ shrink: true }}
+                value={form.policeVerificationDate}
+                onChange={(e) => setForm({ ...form, policeVerificationDate: e.target.value })}
+                fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                size="small"
+                type="date"
+                label="Medical Fitness Certificate Expiry"
+                InputLabelProps={{ shrink: true }}
+                value={form.medicalFitnessExpiry}
+                onChange={(e) => setForm({ ...form, medicalFitnessExpiry: e.target.value })}
+                fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+              />
+            </Grid>
+          </Grid>
         </DialogContent>
 
-        <DialogActions sx={{ p: 2 }}>
+        <DialogActions sx={{ p: 2.5, borderTop: "1px solid #f1f5f9" }}>
           <Button
             onClick={() => setOpen(false)}
-            disabled={creating}
+            disabled={saving}
             sx={{ textTransform: "none", fontWeight: 600, color: "#64748b" }}
           >
             Cancel
           </Button>
           <Button
             variant="contained"
-            onClick={handleCreate}
-            disabled={creating || !form.name.trim() || !form.licenseNumber.trim() || !form.contact.trim()}
-            startIcon={creating ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : null}
+            onClick={handleSave}
+            disabled={saving || !form.name.trim() || !form.licenseNumber.trim() || !form.contact.trim()}
+            startIcon={saving ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : null}
             sx={{
-              bgcolor: "#2563eb",
-              borderRadius: 2,
+              background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+              borderRadius: 2.5,
               textTransform: "none",
               fontWeight: 700,
-              px: 2.5,
-              "&:hover": { bgcolor: "#1d4ed8" },
+              px: 3,
+              "&:hover": { background: "linear-gradient(135deg, #0369a1 0%, #075985 100%)" },
             }}
           >
-            {creating ? "Saving..." : "Add Driver"}
+            {saving ? "Saving..." : editingDriver ? "Update Chauffeur" : "Add Chauffeur"}
           </Button>
         </DialogActions>
       </Dialog>

@@ -111,6 +111,7 @@ model Client {
   dutySlipExpenses       DutySlipExpense[]
   bookingTravelers       BookingTraveler[]
   bookingDocuments       BookingDocument[]
+  vehicleMaintenance     VehicleMaintenance[]
 
   @@index([subscriptionStatus])
   @@map("clients")
@@ -501,15 +502,23 @@ model Trip {
 }
 
 model Driver {
-  id            String   @id @default(cuid())
-  clientId      String
-  client        Client   @relation(fields: [clientId], references: [id])
-  name          String
-  licenseNumber String
-  contact       String
-  isAvailable   Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                       String    @id @default(cuid())
+  clientId                 String
+  client                   Client    @relation(fields: [clientId], references: [id])
+  name                     String
+  licenseNumber            String
+  contact                  String
+  isAvailable              Boolean   @default(true)
+  licenseExpiry            DateTime?
+  badgeNumber              String?
+  badgeExpiry              DateTime?
+  policeVerificationStatus String?   @default("PENDING") // VERIFIED | PENDING | EXPIRED | NOT_DONE
+  policeVerificationDate   DateTime?
+  medicalFitnessExpiry     DateTime?
+  emergencyContact         String?
+  bloodGroup               String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   vehicles  Vehicle[]
   bookings  Booking[]
@@ -543,18 +552,57 @@ model Vehicle {
   rcExpiry           DateTime?
   insuranceExpiry    DateTime?
   permitExpiry       DateTime?
+  fitnessExpiry      DateTime?
+  pucExpiry          DateTime?
+  taxExpiry          DateTime?
+  currentOdometer    Int?      @default(0)
+  fuelType           String?   // PETROL | DIESEL | CNG | ELECTRIC | HYBRID
+  chassisNumber      String?
+  engineNumber       String?
+  fastagTagNumber    String?
+  operationalStatus  String    @default("AVAILABLE") // AVAILABLE | ON_TRIP | MAINTENANCE | GROUNDED
+  lastServiceDate    DateTime?
+  nextServiceDueKm   Int?
+  nextServiceDueDate DateTime?
   assignedDriverId   String?
   assignedDriver     Driver?   @relation(fields: [assignedDriverId], references: [id])
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  bookings  Booking[]
-  trips     Trip[]
-  documents Document[]
+  bookings        Booking[]
+  trips           Trip[]
+  documents       Document[]
+  maintenanceLogs VehicleMaintenance[]
 
   @@unique([clientId, registrationNumber])
   @@index([clientId])
   @@map("vehicles")
+}
+
+model VehicleMaintenance {
+  id                 String    @id @default(cuid())
+  clientId           String    @map("client_id")
+  vehicleId          String    @map("vehicle_id")
+  serviceType        String    @map("service_type") // SCHEDULED_SERVICE | OIL_CHANGE | TYRE_CHANGE | BRAKE_SERVICE | AC_REPAIR | ENGINE_WORK | ACCIDENT_REPAIR | OTHER
+  serviceDate        DateTime  @map("service_date")
+  odometerAtService  Int?      @map("odometer_at_service")
+  garageWorkshopName String?   @map("garage_workshop_name")
+  garagePhone        String?   @map("garage_phone")
+  costInPaise        Int       @default(0) @map("cost_in_paise")
+  invoiceBillUrl     String?   @map("invoice_bill_url")
+  notes              String?   @db.Text
+  nextServiceDueKm   Int?      @map("next_service_due_km")
+  nextServiceDueDate DateTime? @map("next_service_due_date")
+  status             String    @default("COMPLETED") // SCHEDULED | IN_PROGRESS | COMPLETED
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  client             Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  vehicle            Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([vehicleId])
+  @@map("vehicle_maintenance")
 }
 
 model Payment {
@@ -669,8 +717,11 @@ model AutomationLog {
   client     Client         @relation(fields: [clientId], references: [id])
   ruleId     String
   rule       AutomationRule @relation(fields: [ruleId], references: [id])
-  targetType String         // ENQUIRY | QUOTATION | BOOKING | VEHICLE
+  targetType String         // ENQUIRY | QUOTATION | BOOKING | VEHICLE | TRIP
   targetId   String
+  channel    String?        // WHATSAPP | EMAIL | BOTH | INTERNAL
+  status     String?        // SENT | FAILED | SIMULATED | READY_LINK
+  recipient  String?        // Phone number or email address
   message    String?
   createdAt  DateTime       @default(now())
 

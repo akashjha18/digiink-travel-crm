@@ -7,6 +7,7 @@ import { scopeTenant } from "../guards/tenant-scope.guard";
 import { requireEntitlement } from "../guards/entitlement.guard";
 import { requirePermission } from "../guards/rbac.guard";
 import { logTenantAction } from "../audit/audit.service";
+import { emitWorkflowEvent } from "../automation/automation.service";
 
 export const paymentsRouter = Router();
 
@@ -101,6 +102,16 @@ paymentsRouter.post("/", requirePermission("payments", "add"), async (req, res, 
     });
 
     await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "RECORD_PAYMENT", target: payment.id, metadata: { bookingId: booking.id, amountInPaise: input.amountInPaise } });
+
+    emitWorkflowEvent({
+      clientId: req.clientId!,
+      eventType: "PAYMENT_RECEIVED",
+      targetType: "PAYMENT",
+      targetId: payment.id,
+    }).catch((err) => {
+      console.error("[workflow:PAYMENT_RECEIVED]", err);
+    });
+
     return ok(res, payment, "Payment recorded");
   } catch (err) {
     next(err);

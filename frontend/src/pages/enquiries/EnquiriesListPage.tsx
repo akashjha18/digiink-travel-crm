@@ -25,8 +25,13 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   CircularProgress,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import CloudUploadRoundedIcon from "@mui/icons-material/CloudUploadRounded";
+import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded";
@@ -37,7 +42,11 @@ import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
 import ContactPhoneRoundedIcon from "@mui/icons-material/ContactPhoneRounded";
+import LanguageRoundedIcon from "@mui/icons-material/LanguageRounded";
 import { apiClient } from "../../api/client";
+import { ImportLeadsModal } from "./ImportLeadsModal";
+import { LeadCaptureWidgetModal } from "./LeadCaptureWidgetModal";
+import { WhatsAppModal } from "../../components/whatsapp/WhatsAppModal";
 
 const STAGES = ["NEW", "CONTACTED", "QUOTED", "NEGOTIATION", "WON", "LOST"];
 
@@ -61,6 +70,10 @@ export function EnquiriesListPage() {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [leadWidgetOpen, setLeadWidgetOpen] = useState(false);
+  const [importSuccessAlert, setImportSuccessAlert] = useState<string | null>(null);
+  const [whatsAppTarget, setWhatsAppTarget] = useState<any | null>(null);
   const [useExisting, setUseExisting] = useState(true);
 
   const [form, setForm] = useState({
@@ -160,6 +173,67 @@ export function EnquiriesListPage() {
     return { total, newCount, quotedCount, wonCount };
   }, [enquiries]);
 
+  function handleExportCsv() {
+    if (filteredEnquiries.length === 0) return;
+
+    const headers = [
+      "Lead ID",
+      "Customer Name",
+      "Phone",
+      "Email",
+      "Pickup Location",
+      "Drop Location",
+      "Travel Date",
+      "Vehicle / Service",
+      "Source",
+      "Stage",
+      "Assigned Staff",
+      "Created Date",
+      "Follow-up Date",
+      "Requirement / Notes",
+    ];
+
+    const rows = filteredEnquiries.map((e) => [
+      `#LEAD-${e.id.slice(-6).toUpperCase()}`,
+      e.customer?.name ?? "",
+      e.customer?.phone ?? "",
+      e.customer?.email ?? "",
+      e.pickupLocation ?? e.source ?? "",
+      e.destination ?? "",
+      e.travelDate ? new Date(e.travelDate).toLocaleDateString("en-IN") : "",
+      e.vehicleService ?? "",
+      e.source ?? "Direct",
+      e.status ?? "NEW",
+      e.assignedTo?.name ?? "Unassigned",
+      e.createdAt ? new Date(e.createdAt).toLocaleDateString("en-IN") : "",
+      e.followUpDate ? new Date(e.followUpDate).toLocaleDateString("en-IN") : "",
+      e.notes ?? "",
+    ]);
+
+    const escapeCell = (val: any) => {
+      const s = String(val ?? "").replace(/"/g, '""');
+      return `"${s}"`;
+    };
+
+    const csvContent = [
+      headers.map(escapeCell).join(","),
+      ...rows.map((row) => row.map(escapeCell).join(",")),
+    ].join("\r\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    a.download = `leads_export_${dateStr}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setImportSuccessAlert(`Exported ${filteredEnquiries.length} leads to CSV`);
+  }
+
   return (
     <Box sx={{ p: { xs: 2.5, md: 4.5 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
       {/* Top Header */}
@@ -195,26 +269,101 @@ export function EnquiriesListPage() {
           </Typography>
         </Box>
 
-        <Button
-          variant="contained"
-          startIcon={<AddRoundedIcon />}
-          onClick={() => setOpen(true)}
-          sx={{
-            background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-            borderRadius: 2.5,
-            px: 2.75,
-            py: 1,
-            textTransform: "none",
-            fontWeight: 800,
-            boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)",
-            "&:hover": {
-              background: "linear-gradient(135deg, #0369a1 0%, #075985 100%)",
-              transform: "translateY(-1px)",
-            },
-          }}
-        >
-          Add Lead
-        </Button>
+        <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
+          <Button
+            variant="outlined"
+            startIcon={<FileDownloadRoundedIcon />}
+            onClick={handleExportCsv}
+            disabled={filteredEnquiries.length === 0}
+            sx={{
+              borderColor: "#cbd5e1",
+              color: "#334155",
+              borderRadius: 2.5,
+              px: 2.25,
+              py: 1,
+              textTransform: "none",
+              fontWeight: 700,
+              bgcolor: "#ffffff",
+              boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+              "&:hover": {
+                borderColor: "#94a3b8",
+                bgcolor: "#f8fafc",
+                transform: "translateY(-1px)",
+              },
+            }}
+          >
+            Export CSV {filteredEnquiries.length !== enquiries.length ? `(${filteredEnquiries.length})` : ""}
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<CloudUploadRoundedIcon />}
+            onClick={() => setImportOpen(true)}
+            sx={{
+              borderColor: "#cbd5e1",
+              color: "#334155",
+              borderRadius: 2.5,
+              px: 2.25,
+              py: 1,
+              textTransform: "none",
+              fontWeight: 700,
+              bgcolor: "#ffffff",
+              boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+              "&:hover": {
+                borderColor: "#94a3b8",
+                bgcolor: "#f8fafc",
+                transform: "translateY(-1px)",
+              },
+            }}
+          >
+            Import CSV
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<LanguageRoundedIcon />}
+            onClick={() => setLeadWidgetOpen(true)}
+            sx={{
+              borderColor: "#0284c7",
+              color: "#0284c7",
+              borderRadius: 2.5,
+              px: 2.25,
+              py: 1,
+              textTransform: "none",
+              fontWeight: 700,
+              bgcolor: "rgba(2, 132, 199, 0.04)",
+              boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+              "&:hover": {
+                borderColor: "#0369a1",
+                bgcolor: "rgba(2, 132, 199, 0.1)",
+                transform: "translateY(-1px)",
+              },
+            }}
+          >
+            Web Form
+          </Button>
+
+          <Button
+            variant="contained"
+            startIcon={<AddRoundedIcon />}
+            onClick={() => setOpen(true)}
+            sx={{
+              background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+              borderRadius: 2.5,
+              px: 2.75,
+              py: 1,
+              textTransform: "none",
+              fontWeight: 800,
+              boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)",
+              "&:hover": {
+                background: "linear-gradient(135deg, #0369a1 0%, #075985 100%)",
+                transform: "translateY(-1px)",
+              },
+            }}
+          >
+            Add Lead
+          </Button>
+        </Box>
       </Box>
 
       {/* KPI Stats Strip */}
@@ -565,27 +714,53 @@ export function EnquiriesListPage() {
                     </Box>
                   </TableCell>
 
-                  {/* Action Link */}
+                  {/* Action Link & One-Click WhatsApp */}
                   <TableCell align="right" sx={{ py: 2, px: 3 }}>
-                    <Button
-                      component={RouterLink}
-                      to={`/app/enquiries/${e.id}`}
-                      size="small"
-                      endIcon={<ArrowForwardRoundedIcon fontSize="small" />}
-                      sx={{
-                        textTransform: "none",
-                        fontWeight: 700,
-                        fontSize: "0.8rem",
-                        color: "#2563eb",
-                        bgcolor: "#eff6ff",
-                        borderRadius: 2,
-                        px: 1.75,
-                        py: 0.5,
-                        "&:hover": { bgcolor: "#dbeafe" },
-                      }}
-                    >
-                      View
-                    </Button>
+                    <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                      {e.customer?.phone && (
+                        <Tooltip title={`Chat on WhatsApp with ${e.customer?.name || "lead"}`}>
+                          <IconButton
+                            size="small"
+                            onClick={() => setWhatsAppTarget(e)}
+                            sx={{
+                              bgcolor: "rgba(37, 211, 102, 0.1)",
+                              color: "#16a34a",
+                              border: "1px solid rgba(37, 211, 102, 0.25)",
+                              borderRadius: 2,
+                              p: 0.75,
+                              transition: "all 0.15s ease",
+                              "&:hover": {
+                                bgcolor: "#25d366",
+                                color: "#ffffff",
+                                transform: "scale(1.06)",
+                                boxShadow: "0 2px 8px rgba(37, 211, 102, 0.35)",
+                              },
+                            }}
+                          >
+                            <WhatsAppIcon sx={{ fontSize: 17 }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      <Button
+                        component={RouterLink}
+                        to={`/app/enquiries/${e.id}`}
+                        size="small"
+                        endIcon={<ArrowForwardRoundedIcon fontSize="small" />}
+                        sx={{
+                          textTransform: "none",
+                          fontWeight: 700,
+                          fontSize: "0.8rem",
+                          color: "#2563eb",
+                          bgcolor: "#eff6ff",
+                          borderRadius: 2,
+                          px: 1.75,
+                          py: 0.5,
+                          "&:hover": { bgcolor: "#dbeafe" },
+                        }}
+                      >
+                        View
+                      </Button>
+                    </Box>
                   </TableCell>
                 </TableRow>
               );
@@ -839,6 +1014,68 @@ export function EnquiriesListPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Bulk CSV Import Modal */}
+      <ImportLeadsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        staff={staff}
+        onSuccess={(res) => {
+          setImportSuccessAlert(`Successfully imported ${res.imported} leads!`);
+          load();
+          apiClient.get("/customers").then(({ data }) => setCustomers(data.data ?? []));
+        }}
+      />
+
+      {/* Web Form Embed / Share Modal */}
+      <LeadCaptureWidgetModal
+        open={leadWidgetOpen}
+        onClose={() => setLeadWidgetOpen(false)}
+      />
+
+      {/* One-Click WhatsApp Modal */}
+      {whatsAppTarget && (
+        <WhatsAppModal
+          open={Boolean(whatsAppTarget)}
+          onClose={() => setWhatsAppTarget(null)}
+          initialPhone={whatsAppTarget.customer?.phone || ""}
+          customerName={whatsAppTarget.customer?.name || ""}
+          enquiryId={whatsAppTarget.id}
+          defaultCategory="ENQUIRY_WELCOME"
+          variables={{
+            destination: whatsAppTarget.destination || "your destination",
+            pickup_location: whatsAppTarget.pickupLocation || whatsAppTarget.source || "",
+            travel_date: whatsAppTarget.travelDate
+              ? new Date(whatsAppTarget.travelDate).toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })
+              : "",
+            vehicle_service: whatsAppTarget.vehicleService || "",
+            agent_name: whatsAppTarget.assignedTo?.name || "Travel Specialist",
+          }}
+          onSuccess={() => {
+            setImportSuccessAlert("WhatsApp message logged to lead timeline!");
+          }}
+        />
+      )}
+
+      {/* Success Notification */}
+      <Snackbar
+        open={Boolean(importSuccessAlert)}
+        autoHideDuration={5000}
+        onClose={() => setImportSuccessAlert(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          onClose={() => setImportSuccessAlert(null)}
+          severity="success"
+          sx={{ borderRadius: 2.5, fontWeight: 600, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)" }}
+        >
+          {importSuccessAlert}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

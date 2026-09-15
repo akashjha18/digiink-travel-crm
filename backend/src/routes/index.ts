@@ -32,6 +32,8 @@ import { dutySlipsRouter } from "../trips/duty-slips.controller";
 import { publicDutySlipRouter } from "../trips/public-duty-slip.controller";
 import { bookingVaultRouter } from "../documents/booking-vault.controller";
 import { publicVaultRouter } from "../documents/public-vault.controller";
+import { publicLeadCaptureRouter } from "../enquiries/public-lead-capture.controller";
+import { notificationsRouter } from "../notifications/notifications.controller";
 import { prisma } from "../db/prisma";
 import { z } from "zod";
 import multer from "multer";
@@ -100,6 +102,8 @@ apiRouter.use("/trips", dutySlipsRouter);
 apiRouter.use("/public/duty-slip", publicDutySlipRouter);
 apiRouter.use("/bookings", bookingVaultRouter);
 apiRouter.use("/public/vault", publicVaultRouter);
+apiRouter.use("/public/lead-capture", publicLeadCaptureRouter);
+apiRouter.use("/notifications", notificationsRouter);
 
 apiRouter.get("/client/profile", authenticate, scopeTenant(), async (req, res, next) => {
   try {

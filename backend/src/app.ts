@@ -12,7 +12,8 @@ export function createApp() {
 
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.use(cors({ origin: true, credentials: true }));
-  app.use(express.json());
+  app.use(express.json({ limit: "15mb" }));
+  app.use(express.urlencoded({ limit: "15mb", extended: true }));
   app.use(morgan("dev"));
 
   app.get("/health", (_req, res) => res.json({ status: "ok" }));

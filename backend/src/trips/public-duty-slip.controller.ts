@@ -1,4 +1,7 @@
 import { Router } from "express";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { ok, fail } from "../common/response";
@@ -49,8 +52,77 @@ publicDutySlipRouter.get("/:shareToken", async (req, res, next) => {
 });
 
 // -------------------------------------------------------------
+// POST /api/public/duty-slip/:shareToken/upload
+// Upload Odometer photos or Expense receipts from mobile camera
+// -------------------------------------------------------------
+const uploadSchema = z.object({
+  dataUrl: z.string().min(1, "Image payload is required"),
+  fileName: z.string().optional(),
+});
+
+publicDutySlipRouter.post("/:shareToken/upload", async (req, res, next) => {
+  try {
+    const { shareToken } = req.params;
+    const dutySlip = await prisma.dutySlip.findUnique({ where: { shareToken } });
+    if (!dutySlip) return fail(res, 404, "Duty slip not found", "NOT_FOUND");
+
+    const input = uploadSchema.parse(req.body);
+
+    // If payload is data:image/...;base64, decode and save to uploads/duty-slips
+    const matches = input.dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (matches && matches.length === 3) {
+      const mimeType = matches[1];
+      const buffer = Buffer.from(matches[2], "base64");
+      const ext = mimeType.split("/")[1] || "jpg";
+      const cleanExt = ext.replace("jpeg", "jpg");
+      const fileName = `ds_${dutySlip.id.slice(-6)}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}.${cleanExt}`;
+
+      const uploadsDir = path.resolve(__dirname, "../../uploads/duty-slips");
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      const filePath = path.join(uploadsDir, fileName);
+      fs.writeFileSync(filePath, buffer);
+
+      const publicUrl = `/uploads/duty-slips/${fileName}`;
+      return ok(res, { url: publicUrl }, "Photo uploaded successfully");
+    }
+
+    // Otherwise return input url directly if already a URL
+    return ok(res, { url: input.dataUrl }, "Photo uploaded successfully");
+  } catch (err) {
+    next(err);
+  }
+});
+
+// -------------------------------------------------------------
+// POST /api/public/duty-slip/:shareToken/arrive
+// Driver Confirms Arrival at Pickup Point
+// -------------------------------------------------------------
+publicDutySlipRouter.post("/:shareToken/arrive", async (req, res, next) => {
+  try {
+    const { shareToken } = req.params;
+    const dutySlip = await prisma.dutySlip.findUnique({ where: { shareToken } });
+    if (!dutySlip) return fail(res, 404, "Duty slip not found", "NOT_FOUND");
+
+    const updatedSlip = await prisma.dutySlip.update({
+      where: { id: dutySlip.id },
+      data: {
+        status: dutySlip.status === "GENERATED" ? "DISPATCHED" : dutySlip.status,
+      },
+      include: { expenses: true },
+    });
+
+    return ok(res, updatedSlip, "Chauffeur arrival at pickup point confirmed!");
+  } catch (err) {
+    next(err);
+  }
+});
+
+// -------------------------------------------------------------
 // POST /api/public/duty-slip/:shareToken/start
-// Driver Starts Duty: Opening Odometer
+// Driver Starts Duty: Opening Odometer + Optional Photo
 // -------------------------------------------------------------
 const startDutySchema = z.object({
   startOdometer: z.number().int().nonnegative("Start Odometer must be positive"),
@@ -67,7 +139,7 @@ publicDutySlipRouter.post("/:shareToken/start", async (req, res, next) => {
     });
     if (!dutySlip) return fail(res, 404, "Duty slip not found", "NOT_FOUND");
 
-    if (dutySlip.status === "COMPLETED") {
+    if (dutySlip.status === "COMPLETED" || dutySlip.status === "BILLED") {
       return fail(res, 400, "Duty slip is already completed", "ALREADY_COMPLETED");
     }
 
@@ -91,7 +163,15 @@ publicDutySlipRouter.post("/:shareToken/start", async (req, res, next) => {
       }),
     ]);
 
-    return ok(res, updatedSlip, "Trip started successfully! Have a safe drive.");
+    // Mark vehicle as ON_TRIP
+    if (dutySlip.trip?.vehicleId) {
+      await prisma.vehicle.update({
+        where: { id: dutySlip.trip.vehicleId },
+        data: { operationalStatus: "ON_TRIP" },
+      }).catch(() => {});
+    }
+
+    return ok(res, updatedSlip, "Trip started successfully! Have a safe journey.");
   } catch (err) {
     next(err);
   }
@@ -148,7 +228,7 @@ publicDutySlipRouter.post("/:shareToken/expense", async (req, res, next) => {
       include: { expenses: true },
     });
 
-    return ok(res, { expense, dutySlip: updatedSlip }, "Expense recorded successfully", 201);
+    return ok(res, { expense, dutySlip: updatedSlip }, "Expense recorded successfully");
   } catch (err) {
     next(err);
   }
@@ -172,6 +252,7 @@ publicDutySlipRouter.post("/:shareToken/complete", async (req, res, next) => {
 
     const dutySlip = await prisma.dutySlip.findUnique({
       where: { shareToken },
+      include: { trip: true },
     });
     if (!dutySlip) return fail(res, 404, "Duty slip not found", "NOT_FOUND");
 
@@ -214,6 +295,25 @@ publicDutySlipRouter.post("/:shareToken/complete", async (req, res, next) => {
         data: { status: "COMPLETED" },
       }),
     ]);
+
+    // Update vehicle's live odometer & return to AVAILABLE status
+    if (dutySlip.trip?.vehicleId) {
+      await prisma.vehicle.update({
+        where: { id: dutySlip.trip.vehicleId },
+        data: {
+          currentOdometer: input.endOdometer,
+          operationalStatus: "AVAILABLE",
+        },
+      }).catch(() => {});
+    }
+
+    // Set driver back to available
+    if (dutySlip.trip?.driverId) {
+      await prisma.driver.update({
+        where: { id: dutySlip.trip.driverId },
+        data: { isAvailable: true },
+      }).catch(() => {});
+    }
 
     return ok(res, updatedSlip, "Duty completed successfully! Thank you.");
   } catch (err) {

@@ -6,6 +6,7 @@ import { ok, fail } from "../common/response";
 import { authenticate } from "../guards/authenticate";
 import { scopeTenant } from "../guards/tenant-scope.guard";
 import { logTenantAction } from "../audit/audit.service";
+import { emitWorkflowEvent } from "../automation/automation.service";
 
 export const dutySlipsRouter = Router({ mergeParams: true });
 
@@ -117,7 +118,7 @@ dutySlipsRouter.post("/:tripId/duty-slip", async (req, res, next) => {
       metadata: { slipNumber, tripId },
     });
 
-    return ok(res, dutySlip, "Duty slip generated successfully", 201);
+    return ok(res, dutySlip, "Duty slip generated successfully");
   } catch (err) {
     next(err);
   }
@@ -151,6 +152,15 @@ dutySlipsRouter.post("/:tripId/duty-slip/dispatch", async (req, res, next) => {
       action: "DISPATCH_DUTY_SLIP",
       target: updated.id,
       metadata: { slipNumber: updated.slipNumber },
+    });
+
+    emitWorkflowEvent({
+      clientId,
+      eventType: "DUTY_SLIP_DISPATCHED",
+      targetType: "TRIP",
+      targetId: tripId,
+    }).catch((err) => {
+      console.error("[workflow:DUTY_SLIP_DISPATCHED]", err);
     });
 
     return ok(res, updated, "Duty slip marked as dispatched");
@@ -230,3 +240,76 @@ dutySlipsRouter.patch("/:tripId/duty-slip", async (req, res, next) => {
     next(err);
   }
 });
+
+// -------------------------------------------------------------
+// POST /api/trips/:tripId/duty-slip/sync-billing
+// Sync on-trip tolls, parking, and extra KM to Booking internal invoice records
+// -------------------------------------------------------------
+dutySlipsRouter.post("/:tripId/duty-slip/sync-billing", async (req, res, next) => {
+  try {
+    const clientId = req.clientId!;
+    const { tripId } = req.params;
+
+    const dutySlip = await prisma.dutySlip.findFirst({
+      where: { tripId, clientId },
+      include: {
+        trip: {
+          include: {
+            booking: true,
+          },
+        },
+        expenses: true,
+      },
+    });
+
+    if (!dutySlip) return fail(res, 404, "Duty slip not found", "NOT_FOUND");
+
+    const tollsRupees = (dutySlip.tollChargesInPaise || 0) / 100;
+    const parkingRupees = (dutySlip.parkingChargesInPaise || 0) / 100;
+    const stateTaxRupees = (dutySlip.stateTaxInPaise || 0) / 100;
+    const totalRecoverable = tollsRupees + parkingRupees + stateTaxRupees;
+    const totalExpenses = (dutySlip.totalExpensesInPaise || 0) / 100;
+
+    const syncSummary = `[Duty Slip Sync #${dutySlip.slipNumber}] Total Distance: ${dutySlip.totalKm || 0} KM | Duration: ${dutySlip.totalHours || 0} hrs. Recoverable On-Trip Expenses: ₹${totalRecoverable.toLocaleString("en-IN")} (Tolls: ₹${tollsRupees}, Parking: ₹${parkingRupees}, State Tax: ₹${stateTaxRupees}, Total Expenses Logged: ₹${totalExpenses}). Synced to booking on ${new Date().toLocaleString("en-IN")}.`;
+
+    if (dutySlip.trip?.bookingId) {
+      const existingNotes = dutySlip.trip.booking.internalNotes || "";
+      const updatedNotes = existingNotes ? `${existingNotes}\n\n${syncSummary}` : syncSummary;
+
+      await prisma.booking.update({
+        where: { id: dutySlip.trip.bookingId },
+        data: {
+          internalNotes: updatedNotes,
+        },
+      });
+    }
+
+    const updatedSlip = await prisma.dutySlip.update({
+      where: { id: dutySlip.id },
+      data: { status: "BILLED" },
+      include: { expenses: true },
+    });
+
+    await logTenantAction({
+      clientId,
+      userId: req.auth!.sub,
+      action: "SYNC_DUTY_SLIP_BILLING",
+      target: dutySlip.id,
+      metadata: { tripId, totalRecoverable, totalKm: dutySlip.totalKm },
+    });
+
+    return ok(
+      res,
+      {
+        dutySlip: updatedSlip,
+        totalRecoverableInRupees: totalRecoverable,
+        totalKm: dutySlip.totalKm,
+        totalHours: dutySlip.totalHours,
+      },
+      "Duty slip on-trip expenses successfully synced to booking records!"
+    );
+  } catch (err) {
+    next(err);
+  }
+});
+

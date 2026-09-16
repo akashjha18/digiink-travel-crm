@@ -43,7 +43,7 @@ publicVaultRouter.get("/:shareToken", async (req, res, next) => {
     }
 
     const company = booking.client.companyProfile || {
-      companyName: booking.client.name,
+      companyName: booking.client.businessName,
       logoUrl: null,
       phone: null,
       email: null,
@@ -103,7 +103,7 @@ publicVaultRouter.post("/:shareToken/traveler", async (req, res, next) => {
       },
     });
 
-    return ok(res, traveler, 201);
+    return ok(res, traveler, "Traveler added successfully");
   } catch (err) {
     next(err);
   }
@@ -163,7 +163,7 @@ publicVaultRouter.post("/:shareToken/upload", async (req, res, next) => {
       include: { traveler: { select: { id: true, fullName: true } } },
     });
 
-    return ok(res, doc, 201);
+    return ok(res, doc, "Document uploaded successfully");
   } catch (err) {
     next(err);
   }

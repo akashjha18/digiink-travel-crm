@@ -17,8 +17,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isClientAdmin = localStorage.getItem("isClientAdmin") === "true";
     const permissionsJson = localStorage.getItem("permissions");
     const permissions = permissionsJson ? JSON.parse(permissionsJson) : undefined;
+    const subscriptionStatus = (localStorage.getItem("subscriptionStatus") as AuthState["subscriptionStatus"]) || undefined;
     if (accessToken && refreshToken && role) {
-      return { accessToken, refreshToken, role, isClientAdmin, permissions };
+      return { accessToken, refreshToken, role, isClientAdmin, permissions, subscriptionStatus };
     }
     return null;
   });
@@ -31,12 +32,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("role", next.role);
       localStorage.setItem("isClientAdmin", String(Boolean(next.isClientAdmin)));
       if (next.permissions) localStorage.setItem("permissions", JSON.stringify(next.permissions));
+      if (next.subscriptionStatus) localStorage.setItem("subscriptionStatus", next.subscriptionStatus);
+      else localStorage.removeItem("subscriptionStatus");
     } else {
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
       localStorage.removeItem("role");
       localStorage.removeItem("isClientAdmin");
       localStorage.removeItem("permissions");
+      localStorage.removeItem("subscriptionStatus");
     }
   };
 

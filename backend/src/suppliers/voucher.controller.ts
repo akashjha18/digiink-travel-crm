@@ -110,7 +110,7 @@ voucherRouter.post("/:bookingId/vouchers", async (req, res, next) => {
       metadata: { voucherNumber, hotelName: input.hotelName, bookingId },
     });
 
-    return ok(res, voucher, "Hotel voucher generated successfully", 201);
+    return ok(res, voucher, "Hotel voucher generated successfully");
   } catch (err) {
     next(err);
   }

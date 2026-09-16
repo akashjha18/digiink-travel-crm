@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
+import { TripStatus } from "../generated/client";
 import { ok, fail } from "../common/response";
 import { authenticate } from "../guards/authenticate";
 import { scopeTenant } from "../guards/tenant-scope.guard";
@@ -112,7 +113,7 @@ async function findConflictingTrip(params: {
   const overlapCondition = {
     id: { not: tripId },
     clientId,
-    status: { in: ["SCHEDULED", "IN_PROGRESS"] as const },
+    status: { in: [TripStatus.SCHEDULED, TripStatus.IN_PROGRESS] },
     startDate: { lte: effectiveEnd },
     OR: [{ endDate: { gte: startDate } }, { endDate: null }],
   };

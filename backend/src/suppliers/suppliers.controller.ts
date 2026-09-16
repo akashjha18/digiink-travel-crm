@@ -208,7 +208,7 @@ suppliersRouter.post("/", async (req, res, next) => {
       metadata: { name: supplier.name, type: supplier.type },
     });
 
-    return ok(res, supplier, "Supplier created successfully", 201);
+    return ok(res, supplier, "Supplier created successfully");
   } catch (err) {
     next(err);
   }

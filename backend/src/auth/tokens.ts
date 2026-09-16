@@ -10,7 +10,7 @@ export interface AccessTokenPayload {
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {
-  return jwt.sign(payload, env.jwt.accessSecret, { expiresIn: env.jwt.accessExpiresIn });
+  return jwt.sign(payload, env.jwt.accessSecret, { expiresIn: env.jwt.accessExpiresIn as any });
 }
 
 export interface OtpPendingPayload {
@@ -36,7 +36,7 @@ export function verifyOtpPendingToken(token: string): OtpPendingPayload {
 }
 
 export function signRefreshToken(payload: Pick<AccessTokenPayload, "sub" | "clientId" | "role">): string {
-  return jwt.sign(payload, env.jwt.refreshSecret, { expiresIn: env.jwt.refreshExpiresIn });
+  return jwt.sign(payload, env.jwt.refreshSecret, { expiresIn: env.jwt.refreshExpiresIn as any });
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {

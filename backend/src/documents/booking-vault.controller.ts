@@ -130,7 +130,7 @@ bookingVaultRouter.post("/:bookingId/travelers", async (req, res, next) => {
       },
     });
 
-    return ok(res, traveler, 201);
+    return ok(res, traveler, "Traveler added successfully");
   } catch (err) {
     next(err);
   }
@@ -236,7 +236,7 @@ bookingVaultRouter.post("/:bookingId/documents", async (req, res, next) => {
       include: { traveler: { select: { id: true, fullName: true } } },
     });
 
-    return ok(res, doc, 201);
+    return ok(res, doc, "Document uploaded successfully");
   } catch (err) {
     next(err);
   }

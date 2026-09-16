@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Box, Button, TextField, Typography, Alert, InputAdornment, IconButton,
   Checkbox, FormControlLabel, Avatar,
@@ -54,7 +54,9 @@ const COPY: Record<Audience, {
 
 export function LoginForm({ audience }: { audience: Audience }) {
   const copy = COPY[audience];
-  const [email, setEmail] = useState("");
+  const [searchParams] = useSearchParams();
+  const initialEmail = searchParams.get("email") || "";
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);

@@ -3,6 +3,7 @@ import IORedis from "ioredis";
 import { env } from "../config/env";
 import { prisma } from "../db/prisma";
 import { executeRuleAction } from "../automation/automation.service";
+import { getEffectiveEntitlements } from "../guards/entitlement.guard";
 
 const connection = new IORedis(env.redisUrl, { maxRetriesPerRequest: null });
 
@@ -175,7 +176,7 @@ async function runAutomationSweep() {
   });
 
   for (const client of clients) {
-    const entitlements = client.plan.entitlements as Record<string, boolean>;
+    const entitlements = getEffectiveEntitlements(client);
     if (!entitlements.workflow_automation) continue;
 
     const rules = await prisma.automationRule.findMany({ where: { clientId: client.id, isActive: true } });

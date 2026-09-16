@@ -121,9 +121,51 @@ usersRouter.delete("/staff/:id", requirePermission("staff", "delete"), async (re
     if (!existing) return fail(res, 404, "Staff member not found", "NOT_FOUND");
     if (existing.isClientAdmin) return fail(res, 400, "The Client Admin account cannot be deleted", "CANNOT_DELETE_ADMIN");
 
-    await prisma.user.update({ where: { id: req.params.id }, data: { isActive: false, deletedAt: new Date() } });
-    await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "DELETE_USER", target: req.params.id });
-    return ok(res, {}, "Staff member deleted");
+    await prisma.$transaction(async (tx) => {
+      // 1. Unassign any enquiries assigned to this staff member
+      await tx.enquiry.updateMany({
+        where: { assignedToId: existing.id },
+        data: { assignedToId: null },
+      });
+
+      // 2. Reassign follow-ups to the Client Admin so notes/interactions are preserved
+      const clientAdmin = await tx.user.findFirst({
+        where: { clientId: req.clientId!, isClientAdmin: true },
+      });
+      if (clientAdmin && clientAdmin.id !== existing.id) {
+        await tx.followUp.updateMany({
+          where: { loggedById: existing.id },
+          data: { loggedById: clientAdmin.id },
+        });
+      } else {
+        await tx.followUp.deleteMany({
+          where: { loggedById: existing.id },
+        });
+      }
+
+      // 3. Nullify audit log user references
+      await tx.auditLog.updateMany({
+        where: { userId: existing.id },
+        data: { userId: null },
+      });
+
+      // 4. Delete login and password reset OTPs
+      await tx.loginOtp.deleteMany({ where: { userId: existing.id } });
+      await tx.passwordResetOtp.deleteMany({ where: { userId: existing.id } });
+
+      // 5. Hard delete user record from database
+      await tx.user.delete({ where: { id: existing.id } });
+    });
+
+    await logTenantAction({
+      clientId: req.clientId!,
+      userId: req.auth!.sub,
+      action: "DELETE_USER",
+      target: req.params.id,
+      metadata: { deletedEmail: existing.email, deletedName: existing.name },
+    });
+
+    return ok(res, {}, "Staff member and authentication data permanently deleted");
   } catch (err: any) {
     if (err.code === "SELF_DELETE_FORBIDDEN") {
       return fail(res, 400, err.message, err.code);

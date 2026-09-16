@@ -1,5 +1,5 @@
 import { env } from "../config/env";
-import type { SubscriptionStatus } from "../generated/control-client";
+import type { SubscriptionStatus } from "../generated/client";
 
 /**
  * Pure function that derives the "effective" subscription status from
@@ -10,26 +10,39 @@ import type { SubscriptionStatus } from "../generated/control-client";
  */
 export function computeEffectiveStatus(params: {
   subscriptionExpiry: Date;
+  currentStatus?: SubscriptionStatus | string;
+  lockedAt?: Date | null;
+  graceEndsAt?: Date | null;
   now?: Date;
 }): { status: SubscriptionStatus; graceEndsAt: Date; deleteAt: Date } {
   const now = params.now ?? new Date();
   const expiry = params.subscriptionExpiry;
 
-  const graceEndsAt = addDays(expiry, env.subscription.graceDays);
+  const graceEndsAt = params.graceEndsAt ?? addDays(expiry, env.subscription.graceDays);
   const deleteAt = addDays(expiry, env.subscription.deleteAfterDays);
   const expiringSoonFrom = addDays(expiry, -env.subscription.expiringSoonDays);
 
   let status: SubscriptionStatus;
+
+  // 1. If explicitly DELETED, status is DELETED
+  if (params.currentStatus === "DELETED") {
+    return { status: "DELETED", graceEndsAt, deleteAt };
+  }
+
+  // 2. If manually deactivated/locked by Admin, or past grace period
+  if (params.currentStatus === "LOCKED" || params.lockedAt) {
+    return { status: "LOCKED", graceEndsAt, deleteAt };
+  }
+
+  // 3. Normal time-based derivation
   if (now < expiringSoonFrom) {
     status = "ACTIVE";
   } else if (now < expiry) {
     status = "EXPIRING_SOON";
   } else if (now < graceEndsAt) {
     status = "GRACE";
-  } else if (now < deleteAt) {
-    status = "LOCKED";
   } else {
-    status = "LOCKED"; // actual deletion is a deliberate, audited job action, not implied by date alone
+    status = "LOCKED";
   }
 
   return { status, graceEndsAt, deleteAt };

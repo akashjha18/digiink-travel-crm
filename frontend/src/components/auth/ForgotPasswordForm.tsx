@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Box, Button, TextField, Typography, Alert, InputAdornment, IconButton, Avatar } from "@mui/material";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
@@ -20,10 +20,14 @@ const COPY: Record<Audience, { accentColor: string; accentHover: string; loginHr
 export function ForgotPasswordForm({ audience }: { audience: Audience }) {
   const copy = COPY[audience];
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [step, setStep] = useState<Step>("email");
-  const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
+  const initialEmail = searchParams.get("email") || "";
+  const initialOtp = searchParams.get("otp") || "";
+
+  const [step, setStep] = useState<Step>(initialOtp ? "otp" : "email");
+  const [email, setEmail] = useState(initialEmail);
+  const [otp, setOtp] = useState(initialOtp);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -104,7 +108,7 @@ export function ForgotPasswordForm({ audience }: { audience: Audience }) {
       <Box display="flex" flexDirection="column" alignItems="center" mb={3}>
         <Avatar src={logo} alt="DigiInk Solutions" sx={{ width: 72, height: 72, mb: 2 }} />
         <Typography variant="h5" fontWeight={800} textAlign="center">
-          {step === "email" ? "Reset your password" : "Enter your code"}
+          {step === "email" ? "Reset your password" : (initialOtp ? "Set your new password" : "Enter your code")}
         </Typography>
         {step === "email" && !done && (
           <Typography variant="body2" color="text.secondary" textAlign="center" mt={0.5}>
@@ -113,7 +117,9 @@ export function ForgotPasswordForm({ audience }: { audience: Audience }) {
         )}
         {step === "otp" && !done && (
           <Typography variant="body2" color="text.secondary" textAlign="center" mt={0.5}>
-            We sent a 6-digit code to {email}. Enter it below with your new password.
+            {initialOtp
+              ? `Your setup verification code is pre-filled. Enter your new password for ${email || "your account"} below.`
+              : `We sent a 6-digit code to ${email}. Enter it below with your new password.`}
           </Typography>
         )}
       </Box>

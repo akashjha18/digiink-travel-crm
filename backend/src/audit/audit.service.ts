@@ -22,7 +22,7 @@ export async function logSuperAdminAction(params: {
       actorEmail: params.actorEmail,
       action: params.action,
       targetClientId: params.targetClientId,
-      metadata: params.metadata ?? {},
+      metadata: (params.metadata as any) ?? {},
       ipAddress: params.ipAddress,
     },
   });
@@ -42,7 +42,7 @@ export async function logTenantAction(params: {
       userId: params.userId,
       action: params.action,
       target: params.target,
-      metadata: params.metadata ?? {},
+      metadata: (params.metadata as any) ?? {},
       ipAddress: params.ipAddress,
     },
   });

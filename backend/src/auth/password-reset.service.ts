@@ -13,18 +13,27 @@ function hashCode(code: string): string {
 }
 
 /**
+ * Creates and stores a password reset OTP in the database and returns the plain 6-digit code.
+ */
+export async function createPasswordResetOtp(userId: string, ttlMinutes: number = RESET_OTP_TTL_MINUTES): Promise<string> {
+  const code = generateSixDigitCode();
+  const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+
+  await prisma.passwordResetOtp.create({
+    data: { userId, codeHash: hashCode(code), expiresAt },
+  });
+
+  return code;
+}
+
+/**
  * Issues a password-reset code for either account type (SuperAdminUser or
  * tenant User) — the caller has already resolved `userId` from whichever
  * table matched the submitted email. Stores only the hash, same as login
  * OTP, and emails the plain code.
  */
 export async function issuePasswordResetOtp(userId: string, email: string): Promise<void> {
-  const code = generateSixDigitCode();
-  const expiresAt = new Date(Date.now() + RESET_OTP_TTL_MINUTES * 60 * 1000);
-
-  await prisma.passwordResetOtp.create({
-    data: { userId, codeHash: hashCode(code), expiresAt },
-  });
+  const code = await createPasswordResetOtp(userId, RESET_OTP_TTL_MINUTES);
 
   await sendMail(
     email,

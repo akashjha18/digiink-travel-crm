@@ -48,13 +48,22 @@ authRouter.post("/login", async (req, res, next) => {
       return fail(res, 401, "Invalid credentials", "INVALID_CREDENTIALS");
     }
 
+    if (user.client.subscriptionStatus === "DELETED") {
+      return fail(res, 403, "This account has been terminated", "ACCOUNT_DELETED");
+    }
+
     if (OTP_LOGIN_ENABLED) {
       await issueLoginOtp(user.id, user.email);
       const otpToken = signOtpPendingToken({ sub: user.id, clientId: user.clientId });
       return ok(res, { otpRequired: true, otpToken }, "Enter the code we emailed you");
     }
 
-    const { status } = computeEffectiveStatus({ subscriptionExpiry: user.client.subscriptionExpiry });
+    const { status } = computeEffectiveStatus({
+      subscriptionExpiry: user.client.subscriptionExpiry,
+      graceEndsAt: user.client.graceEndsAt,
+      currentStatus: user.client.subscriptionStatus,
+      lockedAt: user.client.lockedAt,
+    });
 
     const accessToken = signAccessToken({
       sub: user.id, clientId: user.clientId, role: "CLIENT_USER",
@@ -93,7 +102,16 @@ authRouter.post("/verify-otp", async (req, res, next) => {
     if (!isValid) return fail(res, 400, "Invalid or expired code", "INVALID_OTP");
 
     const user = await prisma.user.findUniqueOrThrow({ where: { id: pending.sub }, include: { client: true, role: true } });
-    const { status } = computeEffectiveStatus({ subscriptionExpiry: user.client.subscriptionExpiry });
+    if (user.client.subscriptionStatus === "DELETED") {
+      return fail(res, 403, "This account has been terminated", "ACCOUNT_DELETED");
+    }
+
+    const { status } = computeEffectiveStatus({
+      subscriptionExpiry: user.client.subscriptionExpiry,
+      graceEndsAt: user.client.graceEndsAt,
+      currentStatus: user.client.subscriptionStatus,
+      lockedAt: user.client.lockedAt,
+    });
 
     const accessToken = signAccessToken({
       sub: user.id, clientId: user.clientId, role: "CLIENT_USER",

@@ -7,6 +7,8 @@ import { apiRouter } from "./routes";
 import { fail } from "./common/response";
 import { ApiError } from "./common/http-errors";
 
+import { z } from "zod";
+
 export function createApp() {
   const app = express();
 
@@ -25,6 +27,12 @@ export function createApp() {
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (err instanceof ApiError) {
       return fail(res, err.statusCode, err.message, err.code);
+    }
+    if (err instanceof z.ZodError) {
+      const issue = err.issues[0];
+      const fieldPath = issue?.path?.join(".") ? `${issue.path.join(".")}: ` : "";
+      const message = `${fieldPath}${issue?.message || "Validation failed"}`;
+      return fail(res, 400, message, "VALIDATION_ERROR");
     }
     console.error(err);
     return fail(res, 500, "Something went wrong", "INTERNAL_ERROR");

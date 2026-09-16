@@ -53,6 +53,7 @@ import { ClientDetailPage } from "../pages/super-admin/ClientDetailPage";
 import { PlanManagerPage } from "../pages/super-admin/PlanManagerPage";
 import { PaymentNoticesPage } from "../pages/super-admin/PaymentNoticesPage";
 import { AuditLogPage } from "../pages/super-admin/AuditLogPage";
+import { SystemHealthPage } from "../pages/super-admin/SystemHealthPage";
 import { SuperAdminLayout } from "../layouts/SuperAdminLayout";
 import { ProtectedRoute } from "../routes/ProtectedRoute";
 
@@ -74,6 +75,7 @@ export function App() {
               <Route path="/inquiry/:clientCode" element={<PublicLeadCapturePage />} />
               <Route path="/admin/login" element={<SuperAdminLoginPage />} />
               <Route path="/forgot-password" element={<ClientForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ClientForgotPasswordPage />} />
               <Route path="/admin/forgot-password" element={<AdminForgotPasswordPage />} />
               <Route path="/verify-otp" element={<VerifyOtpPage />} />
 
@@ -127,6 +129,7 @@ export function App() {
                   <Route path="/super-admin/plans" element={<PlanManagerPage />} />
                   <Route path="/super-admin/payment-notices" element={<PaymentNoticesPage />} />
                   <Route path="/super-admin/audit-logs" element={<AuditLogPage />} />
+                  <Route path="/super-admin/system-health" element={<SystemHealthPage />} />
                 </Route>
               </Route>
 

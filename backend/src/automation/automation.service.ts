@@ -1,6 +1,7 @@
 import { prisma } from "../db/prisma";
 import { sendWhatsAppMessage, cleanPhoneNumber } from "../whatsapp/whatsapp.service";
 import { sendHtmlMail } from "../email/email.service";
+import { getEffectiveEntitlements } from "../guards/entitlement.guard";
 
 export interface WorkflowEventPayload {
   clientId: string;
@@ -327,7 +328,7 @@ async function buildVariableContext(
       context.customer_phone = enquiry.customer?.phone || "";
       context.customer_email = enquiry.customer?.email || "";
       context.destination = enquiry.destination || "Your Destination";
-      context.lead_id = enquiry.enquiryNumber || enquiry.id.slice(-6).toUpperCase();
+      context.lead_id = enquiry.id.slice(-6).toUpperCase();
       context.agent_name = enquiry.assignedTo?.name || "Travel Specialist";
       context.agent_email = enquiry.assignedTo?.email || "";
     }
@@ -337,35 +338,39 @@ async function buildVariableContext(
       include: {
         customer: true,
         payments: true,
-        trips: { include: { driver: true, vehicle: true } },
+        trip: { include: { driver: true, vehicle: true } },
+        quotation: { include: { enquiry: true } },
       },
     });
     if (booking) {
       context.customer_name = booking.customer?.name || "Traveler";
       context.customer_phone = booking.customer?.phone || "";
       context.customer_email = booking.customer?.email || "";
-      context.booking_number = booking.bookingNumber || booking.id.slice(-6).toUpperCase();
-      context.destination = booking.destination || "Tour Package";
-      context.departure_date = booking.startDate
-        ? new Date(booking.startDate).toLocaleDateString("en-IN", { dateStyle: "medium" })
+      context.booking_number = booking.id.slice(-6).toUpperCase();
+      context.destination = booking.quotation?.enquiry?.destination || "Tour Package";
+      context.departure_date = booking.travelStart
+        ? new Date(booking.travelStart).toLocaleDateString("en-IN", { dateStyle: "medium" })
         : "Scheduled Date";
       context.due_date = booking.paymentDueDate
         ? new Date(booking.paymentDueDate).toLocaleDateString("en-IN", { dateStyle: "medium" })
         : "Prior to Departure";
 
-      const totalAmountRupees = booking.totalAmount || 0;
-      const totalPaidRupees = booking.payments.reduce((sum, p) => sum + (p.amountInPaise || 0) / 100, 0);
+      const totalAmountRupees = (booking.amountInPaise || 0) / 100;
+      const totalPaidRupees = booking.payments.reduce((sum: number, p) => sum + (p.amountInPaise || 0) / 100, 0);
       const balanceRupees = Math.max(0, totalAmountRupees - totalPaidRupees);
 
       context.total_amount = totalAmountRupees.toFixed(2);
+      context.amount = totalAmountRupees.toFixed(2);
       context.advance_amount = totalPaidRupees.toFixed(2);
+      context.amount_paid = totalPaidRupees.toFixed(2);
       context.balance_due = balanceRupees.toFixed(2);
 
-      const firstTrip = booking.trips?.[0];
-      if (firstTrip) {
-        context.driver_name = firstTrip.driver?.name || "Assigned Driver";
-        context.driver_phone = firstTrip.driver?.contact || "";
-        context.vehicle_number = firstTrip.vehicle?.registrationNumber || "";
+      const trip = booking.trip;
+      if (trip) {
+        context.driver_name = trip.driver?.name || "Assigned Driver";
+        context.driver_phone = trip.driver?.contact || "";
+        context.vehicle_number = trip.vehicle?.registrationNumber || "";
+        context.vehicle_model = trip.vehicle?.vehicleType || "";
       }
     }
   } else if (targetType === "PAYMENT") {
@@ -380,12 +385,15 @@ async function buildVariableContext(
       context.customer_name = b?.customer?.name || "Traveler";
       context.customer_phone = b?.customer?.phone || "";
       context.customer_email = b?.customer?.email || "";
-      context.booking_number = b?.bookingNumber || "Booking";
+      context.booking_number = b?.id.slice(-6).toUpperCase() || "Booking";
       context.amount = ((payment.amountInPaise || 0) / 100).toFixed(2);
-      context.payment_method = payment.paymentMode || "Online Transfer";
+      context.payment_amount = ((payment.amountInPaise || 0) / 100).toFixed(2);
+      context.payment_method = payment.mode || "Online Transfer";
+      context.payment_mode = payment.mode || "Online Transfer";
 
-      const totalPaid = (b?.payments || []).reduce((sum, p) => sum + (p.amountInPaise || 0) / 100, 0);
-      const bal = Math.max(0, (b?.totalAmount || 0) - totalPaid);
+      const totalPaid = (b?.payments || []).reduce((sum: number, p) => sum + (p.amountInPaise || 0) / 100, 0);
+      const totalAmount = ((b?.amountInPaise || 0) / 100);
+      const bal = Math.max(0, totalAmount - totalPaid);
       context.balance_due = bal.toFixed(2);
     }
   } else if (targetType === "TRIP") {
@@ -443,7 +451,7 @@ export async function emitWorkflowEvent(payload: WorkflowEventPayload) {
     });
     if (!client) return;
 
-    const entitlements = (client.plan?.entitlements as Record<string, boolean>) || {};
+    const entitlements = getEffectiveEntitlements(client);
     if (!entitlements.workflow_automation) {
       return; // Not entitled to automations on their tier
     }

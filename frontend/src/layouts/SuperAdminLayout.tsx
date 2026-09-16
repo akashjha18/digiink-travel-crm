@@ -5,9 +5,10 @@ import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
 import CardMembershipRoundedIcon from "@mui/icons-material/CardMembershipRounded";
 import MarkEmailUnreadRoundedIcon from "@mui/icons-material/MarkEmailUnreadRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
+import MonitorHeartRoundedIcon from "@mui/icons-material/MonitorHeartRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import { useAuth } from "../hooks/useAuth";
-import logo from "../assets/digiink-logo.svg";
+import logo from "../assets/digiink-solutions-logo.png";
 
 const NAV = [
   { to: "/super-admin/dashboard", label: "Dashboard", icon: DashboardRoundedIcon },
@@ -15,6 +16,7 @@ const NAV = [
   { to: "/super-admin/plans", label: "Plan Manager", icon: CardMembershipRoundedIcon },
   { to: "/super-admin/payment-notices", label: "Payment Notices", icon: MarkEmailUnreadRoundedIcon },
   { to: "/super-admin/audit-logs", label: "Audit Log", icon: HistoryRoundedIcon },
+  { to: "/super-admin/system-health", label: "System Health", icon: MonitorHeartRoundedIcon },
 ];
 
 const DRAWER_WIDTH = 260;
@@ -42,7 +44,20 @@ export function SuperAdminLayout() {
         }}
       >
         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", pt: 4, pb: 3 }}>
-          <Avatar src={logo} alt="DigiInk Solutions" sx={{ width: 64, height: 64, mb: 1.5 }} />
+          <Box
+            component="img"
+            src={logo}
+            alt="DigiInk Solutions"
+            sx={{
+              width: 72,
+              height: 72,
+              borderRadius: "50%",
+              mb: 1.5,
+              objectFit: "cover",
+              boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+              border: "2px solid rgba(255,255,255,0.12)",
+            }}
+          />
           <Typography variant="subtitle1" fontWeight={700} lineHeight={1.2}>
             DigiInk Admin
           </Typography>

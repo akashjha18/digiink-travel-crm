@@ -142,7 +142,7 @@ costingRouter.post("/:bookingId/costing", async (req, res, next) => {
       metadata: { bookingId, totalCostInPaise: calculatedTotal, description: input.description },
     });
 
-    return ok(res, costItem, "Cost item added", 201);
+    return ok(res, costItem, "Cost item added");
   } catch (err) {
     next(err);
   }
@@ -290,7 +290,7 @@ supplierPaymentsRouter.post("/", async (req, res, next) => {
       },
     });
 
-    return ok(res, payment, "Supplier payment recorded successfully", 201);
+    return ok(res, payment, "Supplier payment recorded successfully");
   } catch (err) {
     next(err);
   }

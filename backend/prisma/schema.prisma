@@ -75,6 +75,7 @@ model Client {
   updatedAt DateTime @updatedAt
 
   onboardingCompleted Boolean @default(false)
+  customEntitlements  Json?   @map("custom_entitlements")
 
   paymentLogs    PaymentLog[]
   paymentNotices PaymentNotice[]

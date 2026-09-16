@@ -24,11 +24,11 @@ export const env = {
   redisUrl: required("REDIS_URL", "redis://localhost:6379"),
 
   smtp: {
-    host: process.env.SMTP_HOST ?? "",
-    port: Number(process.env.SMTP_PORT ?? 587),
-    user: process.env.SMTP_USER ?? "",
-    password: process.env.SMTP_PASSWORD ?? "",
-    from: process.env.SMTP_FROM ?? "Digiink Solutions <no-reply@digiinksolutions.com>",
+    host: process.env.SMTP_HOST || process.env.MAIL_HOST || "",
+    port: Number(process.env.SMTP_PORT || process.env.MAIL_PORT || 587),
+    user: process.env.SMTP_USER || process.env.MAIL_USER || "",
+    password: process.env.SMTP_PASSWORD || process.env.MAIL_PASS || process.env.MAIL_PASSWORD || "",
+    from: process.env.SMTP_FROM || process.env.MAIL_FROM || "Digiink Solutions <hostingdigiink@gmail.com>",
   },
 
   appUrl: process.env.APP_URL ?? "http://localhost:5173",

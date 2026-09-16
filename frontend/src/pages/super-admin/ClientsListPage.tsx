@@ -32,6 +32,7 @@ import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded";
 import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import { apiClient } from "../../api/client";
 
 interface ClientRow {
@@ -76,6 +77,11 @@ export function ClientsListPage() {
   const [createdCreds, setCreatedCreds] = useState<{
     clientCode: string;
     temporaryPassword: string;
+    resetUrl?: string;
+    loginUrl?: string;
+    emailSent?: boolean;
+    emailSimulated?: boolean;
+    email?: string;
   } | null>(null);
 
   function load() {
@@ -94,6 +100,11 @@ export function ClientsListPage() {
       setCreatedCreds({
         clientCode: data.data.client.clientCode,
         temporaryPassword: data.data.temporaryPassword,
+        resetUrl: data.data.resetUrl,
+        loginUrl: data.data.loginUrl,
+        emailSent: data.data.emailSent,
+        emailSimulated: data.data.emailSimulated,
+        email: data.data.client.email,
       });
       load();
     } catch (err: any) {
@@ -107,6 +118,23 @@ export function ClientsListPage() {
     navigator.clipboard.writeText(text);
     setToastMessage(`${label} copied to clipboard!`);
   };
+
+  async function handleDeleteClient(c: ClientRow) {
+    if (
+      !window.confirm(
+        `Are you sure you want to permanently delete "${c.businessName}" (${c.clientCode})?\n\nWARNING: All database records, bookings, customers, staff users, itineraries, and settings for this client will be permanently wiped from the database.\n\nThis action CANNOT be undone.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await apiClient.post(`/super-admin/clients/${c.id}/delete`);
+      setClients((prev) => prev.filter((item) => item.id !== c.id));
+      setToastMessage(`Client "${c.businessName}" permanently deleted from database.`);
+    } catch (err: any) {
+      window.alert(err.response?.data?.message ?? "Failed to delete client");
+    }
+  }
 
   // Filter Search & Status logic
   const filteredClients = useMemo(() => {
@@ -348,23 +376,38 @@ export function ClientsListPage() {
                   </Typography>
                 </TableCell>
 
-                {/* Action View */}
+                {/* Action View & Delete */}
                 <TableCell align="right">
-                  <Button
-                    component={RouterLink}
-                    to={`/super-admin/clients/${c.id}`}
-                    size="small"
-                    endIcon={<ArrowForwardRoundedIcon fontSize="small" />}
-                    sx={{
-                      textTransform: "none",
-                      fontWeight: 600,
-                      color: "#2563eb",
-                      borderRadius: 1.5,
-                      "&:hover": { bgcolor: "#eff6ff" },
-                    }}
-                  >
-                    View
-                  </Button>
+                  <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
+                    <Button
+                      component={RouterLink}
+                      to={`/super-admin/clients/${c.id}`}
+                      size="small"
+                      endIcon={<ArrowForwardRoundedIcon fontSize="small" />}
+                      sx={{
+                        textTransform: "none",
+                        fontWeight: 600,
+                        color: "#2563eb",
+                        borderRadius: 1.5,
+                        "&:hover": { bgcolor: "#eff6ff" },
+                      }}
+                    >
+                      View
+                    </Button>
+                    <Tooltip title="Permanently Delete Client">
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleDeleteClient(c)}
+                        sx={{
+                          borderRadius: 1.5,
+                          "&:hover": { bgcolor: "#fef2f2" },
+                        }}
+                      >
+                        <DeleteOutlineRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                 </TableCell>
               </TableRow>
             ))}
@@ -424,7 +467,18 @@ export function ClientsListPage() {
                 severity="success"
                 sx={{ mb: 2.5, borderRadius: 2 }}
               >
-                Client created successfully! Please securely record credentials.
+                Client created successfully!
+                {createdCreds.emailSent ? (
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    A welcome email containing password reset instructions and portal access has been sent to{" "}
+                    <strong>{createdCreds.email}</strong>.
+                    {createdCreds.emailSimulated && " (Simulated in development mode)"}
+                  </Typography>
+                ) : (
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    Please securely record and share these access links with the client.
+                  </Typography>
+                )}
               </Alert>
 
               <Paper
@@ -470,11 +524,61 @@ export function ClientsListPage() {
                     </IconButton>
                   </Tooltip>
                 </Box>
-              </Paper>
 
-              <Typography variant="caption" color="text.secondary" display="block" mt={2}>
-                Share these with the client. (A welcome email will also be sent once SMTP is configured).
-              </Typography>
+                {createdCreds.resetUrl && (
+                  <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Box sx={{ maxWidth: "80%" }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                        PASSWORD SETUP LINK (1-CLICK RESET)
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        fontFamily="monospace"
+                        color="#059669"
+                        sx={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {createdCreds.resetUrl}
+                      </Typography>
+                    </Box>
+                    <Tooltip title="Copy Password Reset Link">
+                      <IconButton size="small" onClick={() => handleCopy(createdCreds.resetUrl!, "Password setup link")}>
+                        <ContentCopyRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                )}
+
+                {createdCreds.loginUrl && (
+                  <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Box sx={{ maxWidth: "80%" }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                        CRM LOGIN URL
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        fontFamily="monospace"
+                        color="#2563eb"
+                        sx={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {createdCreds.loginUrl}
+                      </Typography>
+                    </Box>
+                    <Tooltip title="Copy CRM Login URL">
+                      <IconButton size="small" onClick={() => handleCopy(createdCreds.loginUrl!, "CRM login URL")}>
+                        <ContentCopyRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                )}
+              </Paper>
             </Box>
           ) : (
             <>

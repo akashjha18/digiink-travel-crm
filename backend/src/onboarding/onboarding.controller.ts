@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { ok, fail } from "../common/response";
 import { authenticate } from "../guards/authenticate";
+import { getEffectiveEntitlements } from "../guards/entitlement.guard";
 import { scopeTenant } from "../guards/tenant-scope.guard";
 import { logTenantAction } from "../audit/audit.service";
 import multer from "multer";
@@ -40,7 +41,7 @@ onboardingRouter.get("/status", authenticate, scopeTenant(ALLOWED), async (req, 
       onboardingCompleted: req.client!.onboardingCompleted,
       companyProfile: profile,
       branches,
-      multiBranchEntitled: !!(req.client as any).plan?.entitlements?.multi_branch,
+      multiBranchEntitled: !!getEffectiveEntitlements(req.client).multi_branch,
     });
   } catch (err) {
     next(err);
@@ -99,7 +100,7 @@ const branchSchema = z.object({ name: z.string().min(1), address: z.string().opt
 // trusting the wizard to only call this when it should.
 onboardingRouter.post("/branches", authenticate, scopeTenant(ALLOWED), async (req, res, next) => {
   try {
-    const entitled = !!(req.client as any).plan?.entitlements?.multi_branch;
+    const entitled = !!getEffectiveEntitlements(req.client).multi_branch;
     if (!entitled) return fail(res, 403, "Multi-branch is not included in your plan", "FEATURE_NOT_ENTITLED");
 
     const input = branchSchema.parse(req.body);

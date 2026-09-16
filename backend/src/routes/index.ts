@@ -2,7 +2,8 @@ import { Router } from "express";
 import { authRouter } from "../auth/auth.controller";
 import { authenticate, requireSuperAdmin } from "../guards/authenticate";
 import { scopeTenant } from "../guards/tenant-scope.guard";
-import { requireEntitlement } from "../guards/entitlement.guard";
+import { requireEntitlement, getEffectiveEntitlements } from "../guards/entitlement.guard";
+import { computeEffectiveStatus } from "../subscriptions/subscription-state";
 import { ok } from "../common/response";
 import { superAdminRouter } from "../super-admin/super-admin.controller";
 import { onboardingRouter } from "../onboarding/onboarding.controller";
@@ -160,19 +161,35 @@ apiRouter.get("/client/me", authenticate, scopeTenant(["ACTIVE", "EXPIRING_SOON"
         client: {
           select: {
             businessName: true, clientCode: true, ownerName: true, email: true, phone: true,
+            subscriptionStatus: true, subscriptionExpiry: true, graceEndsAt: true, lockedAt: true,
+            customEntitlements: true,
             plan: { select: { id: true, name: true, priceInPaise: true, entitlements: true, maxUsers: true, maxEnquiriesPerMonth: true, maxBranches: true } },
             companyProfile: { select: { companyName: true, logoUrl: true, address: true, gstNumber: true, phone: true, email: true, businessType: true, currency: true, primaryColor: true, secondaryColor: true, whatsappNumber: true, websiteUrl: true, itineraryFooterNotes: true } },
           },
         },
       },
     });
+
+    const { status } = computeEffectiveStatus({
+      subscriptionExpiry: user.client.subscriptionExpiry,
+      graceEndsAt: user.client.graceEndsAt,
+      currentStatus: user.client.subscriptionStatus,
+      lockedAt: user.client.lockedAt,
+    });
+
     return ok(res, {
       id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl,
       isClientAdmin: user.isClientAdmin, lastLoginAt: user.lastLoginAt, createdAt: user.createdAt,
       role: user.role, branch: user.branch, permissions: user.role.permissionsJson, businessName: user.client.businessName,
       clientCode: user.client.clientCode, ownerName: user.client.ownerName,
       phone: user.client.phone, companyEmail: user.client.email, companyProfile: user.client.companyProfile,
-      plan: user.client.plan,
+      subscriptionStatus: status,
+      plan: {
+        ...user.client.plan,
+        entitlements: getEffectiveEntitlements(user.client),
+        baseEntitlements: user.client.plan?.entitlements,
+        customEntitlements: user.client.customEntitlements,
+      },
     });
   } catch (err) {
     next(err);
@@ -246,7 +263,7 @@ apiRouter.get("/client/dashboard", authenticate, scopeTenant(), requireEntitleme
 
     // Professional+ adds booking/revenue/outstanding metrics now that
     // Bookings and Payments exist (SRS section 40).
-    const entitlements = (req.client as any)?.plan?.entitlements ?? {};
+    const entitlements = getEffectiveEntitlements(req.client);
     if (entitlements.bookings) {
       const [activeBookings, revenueAgg] = await Promise.all([
         prisma.booking.count({ where: { clientId, status: { in: ["CONFIRMED", "IN_PROGRESS"] } } }),
@@ -279,9 +296,20 @@ apiRouter.get("/payment-renewal", authenticate, async (req, res, next) => {
       return ok(res, null);
     }
     const client = await prisma.client.findUnique({ where: { id: req.auth.clientId } });
+    if (!client) {
+      return fail(res, 404, "Client not found", "CLIENT_NOT_FOUND");
+    }
+    const { status } = computeEffectiveStatus({
+      subscriptionExpiry: client.subscriptionExpiry,
+      graceEndsAt: client.graceEndsAt,
+      currentStatus: client.subscriptionStatus,
+      lockedAt: client.lockedAt,
+    });
     return ok(res, {
-      subscriptionStatus: client?.subscriptionStatus,
-      subscriptionExpiry: client?.subscriptionExpiry,
+      subscriptionStatus: status,
+      subscriptionExpiry: client.subscriptionExpiry,
+      graceEndsAt: client.graceEndsAt,
+      lockedAt: client.lockedAt,
     });
   } catch (err) {
     next(err);

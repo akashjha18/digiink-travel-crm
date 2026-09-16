@@ -75,7 +75,7 @@ export async function provisionNewClient(params: {
     metadata: { businessName: params.businessName, planId: params.planId, adminUserId: adminUser.id },
   });
 
-  return { client, temporaryPassword };
+  return { client, adminUser, temporaryPassword };
 }
 
 function buildFullAccessPermissions() {

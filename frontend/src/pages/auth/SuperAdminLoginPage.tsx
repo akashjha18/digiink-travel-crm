@@ -1,6 +1,6 @@
 import { Box, Typography } from "@mui/material";
-import AdminPanelSettingsRoundedIcon from "@mui/icons-material/AdminPanelSettingsRounded";
 import { LoginForm } from "../../components/auth/LoginForm";
+import adminLogo from "../../assets/digiink-solutions-logo.png";
 
 export function SuperAdminLoginPage() {
   return (
@@ -15,13 +15,19 @@ export function SuperAdminLoginPage() {
         sx={{ bgcolor: "#16232e", color: "#fff" }}
       >
         <Box
+          component="img"
+          src={adminLogo}
+          alt="DigiInk Solutions"
           sx={{
-            width: 72, height: 72, borderRadius: 3, bgcolor: "rgba(255,255,255,0.08)",
-            display: "flex", alignItems: "center", justifyContent: "center", mb: 4,
+            width: 96,
+            height: 96,
+            borderRadius: "50%",
+            mb: 4,
+            objectFit: "cover",
+            boxShadow: "0 8px 30px rgba(0,0,0,0.45)",
+            border: "2px solid rgba(255,255,255,0.15)",
           }}
-        >
-          <AdminPanelSettingsRoundedIcon sx={{ color: "#fff", fontSize: 36 }} />
-        </Box>
+        />
         <Typography variant="h4" fontWeight={800} textAlign="center" gutterBottom>
           Platform Control, Centralized
         </Typography>

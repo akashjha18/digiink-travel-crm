@@ -13,7 +13,17 @@ async function runLifecycleSweep() {
   const clients = await prisma.client.findMany({ where: { subscriptionStatus: { not: "DELETED" } } });
 
   for (const client of clients) {
-    const { status, graceEndsAt, deleteAt } = computeEffectiveStatus({ subscriptionExpiry: client.subscriptionExpiry });
+    // If admin explicitly deactivated/locked this client, preserve the lock
+    if (client.subscriptionStatus === "LOCKED" && client.lockedAt) {
+      continue;
+    }
+
+    const { status, graceEndsAt, deleteAt } = computeEffectiveStatus({
+      subscriptionExpiry: client.subscriptionExpiry,
+      graceEndsAt: client.graceEndsAt,
+      currentStatus: client.subscriptionStatus,
+      lockedAt: client.lockedAt,
+    });
 
     if (status !== client.subscriptionStatus) {
       await prisma.client.update({

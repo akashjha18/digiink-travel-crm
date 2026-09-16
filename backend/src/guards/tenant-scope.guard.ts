@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { prisma } from "../db/prisma";
 import { fail } from "../common/response";
 import { computeEffectiveStatus } from "../subscriptions/subscription-state";
+import { getEffectiveEntitlements } from "./entitlement.guard";
 
 /**
  * Replaces the old tenant-DB-resolution guard now that there is a single
@@ -33,17 +34,23 @@ export function scopeTenant(allowedStatuses: string[] = ["ACTIVE", "EXPIRING_SOO
       return fail(res, 404, "Client account not found", "CLIENT_NOT_FOUND");
     }
 
-    const { status } = computeEffectiveStatus({ subscriptionExpiry: client.subscriptionExpiry });
+    const { status } = computeEffectiveStatus({
+      subscriptionExpiry: client.subscriptionExpiry,
+      currentStatus: client.subscriptionStatus,
+      lockedAt: client.lockedAt,
+      graceEndsAt: client.graceEndsAt,
+    });
 
     if (!allowedStatuses.includes(status)) {
       return fail(
         res,
         423,
-        "Your subscription is not active. Please complete payment to restore access.",
+        "Your account is currently locked or deactivated. Please contact support or renew your subscription to restore access.",
         "SUBSCRIPTION_LOCKED"
       );
     }
 
+    (client as any).effectiveEntitlements = getEffectiveEntitlements(client);
     req.client = client;
     req.clientId = client.id;
     return next();

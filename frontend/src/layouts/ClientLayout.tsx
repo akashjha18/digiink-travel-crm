@@ -97,7 +97,7 @@ const NAV_GROUPS = [
 ];
 
 export function ClientLayout() {
-  const { logout } = useAuth();
+  const { auth, setAuth, logout } = useAuth();
   const navigate = useNavigate();
   const [client, setClient] = useState<any>(null);
   const [me, setMe] = useState<any>(null);
@@ -125,7 +125,17 @@ export function ClientLayout() {
       });
     apiClient
       .get("/client/me")
-      .then(({ data }) => setMe(data.data))
+      .then(({ data }) => {
+        setMe(data.data);
+        if (data.data?.subscriptionStatus === "LOCKED") {
+          if (auth) {
+            setAuth({ ...auth, subscriptionStatus: "LOCKED" });
+          } else {
+            localStorage.setItem("subscriptionStatus", "LOCKED");
+          }
+          navigate("/payment-renewal", { replace: true });
+        }
+      })
       .catch((err) => {
         console.error("Failed to load /client/me", err);
       });

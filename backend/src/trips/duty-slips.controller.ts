@@ -272,14 +272,14 @@ dutySlipsRouter.post("/:tripId/duty-slip/sync-billing", async (req, res, next) =
 
     const syncSummary = `[Duty Slip Sync #${dutySlip.slipNumber}] Total Distance: ${dutySlip.totalKm || 0} KM | Duration: ${dutySlip.totalHours || 0} hrs. Recoverable On-Trip Expenses: ₹${totalRecoverable.toLocaleString("en-IN")} (Tolls: ₹${tollsRupees}, Parking: ₹${parkingRupees}, State Tax: ₹${stateTaxRupees}, Total Expenses Logged: ₹${totalExpenses}). Synced to booking on ${new Date().toLocaleString("en-IN")}.`;
 
-    if (dutySlip.trip?.bookingId) {
-      const existingNotes = dutySlip.trip.booking.internalNotes || "";
+    if (dutySlip.trip) {
+      const existingNotes = dutySlip.trip.itineraryNotes || "";
       const updatedNotes = existingNotes ? `${existingNotes}\n\n${syncSummary}` : syncSummary;
 
-      await prisma.booking.update({
-        where: { id: dutySlip.trip.bookingId },
+      await prisma.trip.update({
+        where: { id: dutySlip.trip.id },
         data: {
-          internalNotes: updatedNotes,
+          itineraryNotes: updatedNotes,
         },
       });
     }

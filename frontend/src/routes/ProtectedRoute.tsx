@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import type { UserRole } from "../types/auth";
 
@@ -11,6 +11,7 @@ import type { UserRole } from "../types/auth";
  */
 export function ProtectedRoute({ allow }: { allow: UserRole[] }) {
   const { auth } = useAuth();
+  const location = useLocation();
 
   if (!auth) return <Navigate to="/login" replace />;
   if (!allow.includes(auth.role)) return <Navigate to="/login" replace />;
@@ -18,7 +19,9 @@ export function ProtectedRoute({ allow }: { allow: UserRole[] }) {
   // A LOCKED client must only ever reach the payment-renewal page,
   // regardless of which URL they typed — per SRS section 43.
   if (auth.role === "CLIENT_USER" && auth.subscriptionStatus === "LOCKED") {
-    return <Navigate to="/payment-renewal" replace />;
+    if (location.pathname !== "/payment-renewal") {
+      return <Navigate to="/payment-renewal" replace />;
+    }
   }
 
   return <Outlet />;

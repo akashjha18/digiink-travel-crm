@@ -22,6 +22,8 @@ import {
   Tooltip,
   Chip,
   CircularProgress,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
@@ -32,7 +34,9 @@ import EmailRoundedIcon from "@mui/icons-material/EmailRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
 import LocationOnRoundedIcon from "@mui/icons-material/LocationOnRounded";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import { apiClient } from "../../api/client";
+import { EditCustomerDialog } from "../../components/customers/EditCustomerDialog";
 
 export function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -40,9 +44,24 @@ export function CustomersPage() {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [open, setOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", notes: "" });
+
+  function handleOpenEdit(customer: any) {
+    setEditingCustomer(customer);
+    setEditOpen(true);
+  }
+
+  function handleCustomerSaved(updated: any) {
+    setCustomers((prev) =>
+      prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+    );
+    setSnackbar("Customer updated successfully!");
+  }
 
   function load() {
     setLoading(true);
@@ -392,27 +411,47 @@ export function CustomersPage() {
                   </Box>
                 </TableCell>
 
-                {/* View Profile Action */}
+                {/* Actions */}
                 <TableCell align="right" sx={{ py: 2, px: 3 }}>
-                  <Button
-                    component={RouterLink}
-                    to={`/app/customers/${c.id}`}
-                    size="small"
-                    endIcon={<ArrowForwardRoundedIcon fontSize="small" />}
-                    sx={{
-                      textTransform: "none",
-                      fontWeight: 700,
-                      fontSize: "0.8rem",
-                      color: "#2563eb",
-                      bgcolor: "#eff6ff",
-                      borderRadius: 2,
-                      px: 1.75,
-                      py: 0.5,
-                      "&:hover": { bgcolor: "#dbeafe" },
-                    }}
-                  >
-                    View
-                  </Button>
+                  <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                    <Button
+                      component={RouterLink}
+                      to={`/app/customers/${c.id}`}
+                      size="small"
+                      endIcon={<ArrowForwardRoundedIcon fontSize="small" />}
+                      sx={{
+                        textTransform: "none",
+                        fontWeight: 700,
+                        fontSize: "0.8rem",
+                        color: "#2563eb",
+                        bgcolor: "#eff6ff",
+                        borderRadius: 2,
+                        px: 1.75,
+                        py: 0.5,
+                        "&:hover": { bgcolor: "#dbeafe" },
+                      }}
+                    >
+                      View
+                    </Button>
+                    <Button
+                      size="small"
+                      startIcon={<EditRoundedIcon fontSize="small" />}
+                      onClick={() => handleOpenEdit(c)}
+                      sx={{
+                        textTransform: "none",
+                        fontWeight: 700,
+                        fontSize: "0.8rem",
+                        color: "#475569",
+                        bgcolor: "#f1f5f9",
+                        borderRadius: 2,
+                        px: 1.75,
+                        py: 0.5,
+                        "&:hover": { bgcolor: "#e2e8f0", color: "#0f172a" },
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  </Box>
                 </TableCell>
               </TableRow>
             ))}
@@ -557,6 +596,29 @@ export function CustomersPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Edit Customer Dialog */}
+      <EditCustomerDialog
+        open={editOpen}
+        onClose={() => {
+          setEditOpen(false);
+          setEditingCustomer(null);
+        }}
+        customer={editingCustomer}
+        onSaved={handleCustomerSaved}
+      />
+
+      {/* Toast Notification */}
+      <Snackbar
+        open={Boolean(snackbar)}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert severity="success" onClose={() => setSnackbar(null)} sx={{ borderRadius: 2.5, fontWeight: 700 }}>
+          {snackbar}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

@@ -12,6 +12,8 @@ import {
   Divider,
   CircularProgress,
   Button,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
@@ -24,8 +26,10 @@ import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded
 import RouteRoundedIcon from "@mui/icons-material/RouteRounded";
 import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import { apiClient } from "../../api/client";
 import { CustomFieldsForm } from "../../components/CustomFieldsForm";
+import { EditCustomerDialog } from "../../components/customers/EditCustomerDialog";
 
 const ENQUIRY_STAGE_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
   NEW: { label: "New Lead", bg: "#eff6ff", color: "#1d4ed8" },
@@ -47,10 +51,17 @@ export function CustomerDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<any>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<string | null>(null);
 
   useEffect(() => {
     apiClient.get(`/customers/${id}`).then(({ data }) => setCustomer(data.data));
   }, [id]);
+
+  function handleSaved(updated: any) {
+    setCustomer((prev: any) => ({ ...prev, ...updated }));
+    setSnackbar("Customer profile updated successfully!");
+  }
 
   if (!customer) {
     return (
@@ -183,8 +194,33 @@ export function CustomerDetailPage() {
             </Box>
           </Box>
 
-          {/* Quick Metrics Badges */}
-          <Box display="flex" alignItems="center" gap={1.5}>
+          {/* Quick Metrics Badges & Edit Action */}
+          <Box display="flex" alignItems="center" flexWrap="wrap" gap={1.5}>
+            <Button
+              variant="outlined"
+              startIcon={<EditRoundedIcon />}
+              onClick={() => setEditOpen(true)}
+              sx={{
+                borderRadius: 2.5,
+                textTransform: "none",
+                fontWeight: 800,
+                fontSize: "0.85rem",
+                borderColor: "#cbd5e1",
+                color: "#0f172a",
+                bgcolor: "#ffffff",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                px: 2.2,
+                py: 0.9,
+                "&:hover": {
+                  borderColor: "#0284c7",
+                  bgcolor: "rgba(2, 132, 199, 0.05)",
+                  color: "#0284c7",
+                },
+              }}
+            >
+              Edit Customer
+            </Button>
+
             <Box
               sx={{
                 px: 2,
@@ -478,6 +514,26 @@ export function CustomerDetailPage() {
         <Divider sx={{ mb: 2.5, borderColor: "#f1f5f9" }} />
         <CustomFieldsForm module="customers" recordId={id!} />
       </Paper>
+
+      {/* Edit Customer Modal */}
+      <EditCustomerDialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        customer={customer}
+        onSaved={handleSaved}
+      />
+
+      {/* Success Notification */}
+      <Snackbar
+        open={Boolean(snackbar)}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert severity="success" onClose={() => setSnackbar(null)} sx={{ borderRadius: 2.5, fontWeight: 700 }}>
+          {snackbar}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

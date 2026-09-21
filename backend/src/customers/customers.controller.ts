@@ -51,17 +51,26 @@ customersRouter.get("/:id", requirePermission("customers", "view"), async (req, 
 });
 
 const customerSchema = z.object({
-  name: z.string().min(1),
-  phone: z.string().min(1),
-  email: z.string().email().optional().or(z.literal("")),
-  address: z.string().optional(),
-  notes: z.string().optional(),
+  name: z.string().min(1, "Name is required"),
+  phone: z.string().min(1, "Phone number is required"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")).or(z.null()),
+  address: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 customersRouter.post("/", requirePermission("customers", "add"), async (req, res, next) => {
   try {
     const input = customerSchema.parse(req.body);
-    const customer = await prisma.customer.create({ data: { clientId: req.clientId!, ...input } });
+    const customer = await prisma.customer.create({
+      data: {
+        clientId: req.clientId!,
+        name: input.name.trim(),
+        phone: input.phone.trim(),
+        email: input.email ? input.email.trim() : null,
+        address: input.address ? input.address.trim() : null,
+        notes: input.notes ? input.notes.trim() : null,
+      },
+    });
     await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "CREATE_CUSTOMER", target: customer.id });
     return ok(res, customer, "Customer created");
   } catch (err) {
@@ -75,7 +84,14 @@ customersRouter.patch("/:id", requirePermission("customers", "edit"), async (req
     const existing = await prisma.customer.findFirst({ where: { id: req.params.id, clientId: req.clientId! } });
     if (!existing) return fail(res, 404, "Customer not found", "NOT_FOUND");
 
-    const customer = await prisma.customer.update({ where: { id: req.params.id }, data: input });
+    const updateData: any = {};
+    if (input.name !== undefined) updateData.name = input.name.trim();
+    if (input.phone !== undefined) updateData.phone = input.phone.trim();
+    if (input.email !== undefined) updateData.email = input.email ? input.email.trim() : null;
+    if (input.address !== undefined) updateData.address = input.address ? input.address.trim() : null;
+    if (input.notes !== undefined) updateData.notes = input.notes ? input.notes.trim() : null;
+
+    const customer = await prisma.customer.update({ where: { id: req.params.id }, data: updateData });
     await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "UPDATE_CUSTOMER", target: customer.id });
     return ok(res, customer, "Customer updated");
   } catch (err) {

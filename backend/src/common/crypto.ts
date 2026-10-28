@@ -5,7 +5,11 @@ import crypto from "crypto";
 // In production, ENCRYPTION_KEY must be a real secret from a secrets
 // manager, not the dev fallback below.
 const ALGORITHM = "aes-256-gcm";
-const KEY = crypto.createHash("sha256").update(process.env.ENCRYPTION_KEY ?? "dev-only-insecure-key").digest();
+const encryptionSecret = process.env.ENCRYPTION_KEY;
+if (process.env.NODE_ENV === "production" && (!encryptionSecret || encryptionSecret.length < 32)) {
+  throw new Error("Production requires ENCRYPTION_KEY to be set to at least 32 characters");
+}
+const KEY = crypto.createHash("sha256").update(encryptionSecret ?? "dev-only-insecure-key").digest();
 
 export function encryptSecret(plainText: string): string {
   const iv = crypto.randomBytes(12);

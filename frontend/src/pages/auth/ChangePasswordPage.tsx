@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Box, Button, Paper, TextField, Typography, Alert } from "@mui/material";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../hooks/useAuth";
+import { getClientLanding } from "../../utils/clientLanding";
 
 // Forced first-login password change (SRS section 2/13). The temporary
 // password from the welcome email is the "current password" here.
@@ -23,18 +24,10 @@ export function ChangePasswordPage() {
     }
     try {
       await apiClient.post("/auth/change-password", { currentPassword, newPassword });
-      if (auth?.isClientAdmin) {
+      if (auth?.onboardingCompleted === false) {
         navigate("/onboarding");
-      } else if (auth?.permissions?.dashboard?.view) {
-        navigate("/app/dashboard");
-      } else if (auth?.permissions?.enquiries?.view) {
-        navigate("/app/enquiries");
-      } else if (auth?.permissions?.bookings?.view) {
-        navigate("/app/bookings");
-      } else if (auth?.permissions?.customers?.view) {
-        navigate("/app/customers");
       } else {
-        navigate("/app/profile");
+        navigate(getClientLanding(auth?.permissions));
       }
     } catch (err: any) {
       setError(err.response?.data?.message ?? "Could not update password");

@@ -563,7 +563,7 @@ export function ClientLayout() {
               <MenuItem
                 onClick={() => {
                   setQuickMenuAnchor(null);
-                  navigate("/app/quotations/builder");
+                  navigate("/app/quotations");
                 }}
                 sx={{ fontSize: "0.85rem", fontWeight: 600, py: 1 }}
               >

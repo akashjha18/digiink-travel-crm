@@ -59,6 +59,22 @@ import {
   ComplianceDocItem,
 } from "../../api/fleet";
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "—").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[char]!);
+}
+
+function printableDate(value?: string | Date | null): string {
+  if (!value) return "Not recorded";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Not recorded" : date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 function ComplianceBadge({ doc, label }: { doc?: ComplianceDocItem; label: string }) {
   if (!doc || doc.status === "MISSING" || !doc.expiry) {
     return (
@@ -159,6 +175,7 @@ export function VehiclesPage() {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [openAddModal, setOpenAddModal] = useState(false);
   const [addModalTab, setAddModalTab] = useState(0);
   const [page, setPage] = useState(0);
@@ -220,6 +237,61 @@ export function VehiclesPage() {
     } finally {
       setExporting(false);
     }
+  }
+
+  function handleExportPdf() {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      window.alert("Allow pop-ups for this site to export the vehicle PDF.");
+      return;
+    }
+
+    setExportingPdf(true);
+    const generatedAt = new Date().toLocaleString("en-IN");
+    const vehicleRows = vehicles.map((vehicle) => {
+      const compliance = complianceData?.matrix.find((item) => item.id === vehicle.id);
+      const docDate = (key: "rc" | "insurance" | "permit" | "fitness" | "puc" | "tax", fallback?: string | null) =>
+        printableDate(compliance?.complianceDocs?.[key]?.expiry ?? fallback);
+      const details = [
+        ["Vehicle", vehicle.vehicleName || vehicle.vehicleType],
+        ["Registration", vehicle.registrationNumber],
+        ["Type", vehicle.vehicleType],
+        ["Status", vehicle.operationalStatus || "AVAILABLE"],
+        ["Fuel", vehicle.fuelType || "Not recorded"],
+        ["Seats / Capacity", `${vehicle.seats || vehicle.capacity || "—"} seats`],
+        ["Odometer", `${Number(vehicle.currentOdometer || 0).toLocaleString("en-IN")} km`],
+        ["Assigned driver", vehicle.assignedDriver?.name || "Unassigned"],
+        ["Driver contact", vehicle.assignedDriver?.contact || "Not recorded"],
+        ["Chassis number", vehicle.chassisNumber],
+        ["Engine number", vehicle.engineNumber],
+        ["FASTag", vehicle.fastagTagNumber],
+        ["RC expiry", docDate("rc", vehicle.rcExpiry)],
+        ["Insurance expiry", docDate("insurance", vehicle.insuranceExpiry)],
+        ["Permit expiry", docDate("permit", vehicle.permitExpiry)],
+        ["Fitness expiry", docDate("fitness", vehicle.fitnessExpiry)],
+        ["PUC expiry", docDate("puc", vehicle.pucExpiry)],
+        ["Tax expiry", docDate("tax", vehicle.taxExpiry)],
+        ["Last service", printableDate(compliance?.lastServiceDate ?? vehicle.lastServiceDate)],
+        ["Next service due", compliance?.nextServiceDueKm ? `${Number(compliance.nextServiceDueKm).toLocaleString("en-IN")} km` : printableDate(compliance?.nextServiceDueDate ?? vehicle.nextServiceDueDate)],
+      ];
+
+      return `<section class="vehicle"><h2>${escapeHtml(vehicle.registrationNumber || "Vehicle")}</h2><p class="subtitle">${escapeHtml(vehicle.vehicleName || vehicle.vehicleType || "Fleet vehicle")} · ${escapeHtml(compliance?.overallCompliance || "Compliance not assessed")}</p><table><tbody>${details.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join("")}</tbody></table></section>`;
+    }).join("");
+
+    printWindow.document.open();
+    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Fleet Vehicle Details</title><style>
+      *{box-sizing:border-box}body{font:13px Arial,sans-serif;color:#172033;margin:28px}header{border-bottom:2px solid #0284c7;padding-bottom:14px;margin-bottom:20px}h1{font-size:24px;margin:0 0 6px}header p,.subtitle{color:#58677d;margin:0}.summary{margin:12px 0 20px;padding:12px;background:#f0f7fc;border-radius:6px}.vehicle{border:1px solid #cbd5e1;border-radius:8px;padding:14px;margin:0 0 16px;break-inside:avoid}.vehicle h2{font-size:17px;margin:0 0 4px}.subtitle{margin-bottom:10px}.vehicle table{width:100%;border-collapse:collapse}.vehicle th,.vehicle td{text-align:left;padding:5px 8px;border-top:1px solid #e2e8f0;vertical-align:top}.vehicle th{width:25%;color:#526176;font-weight:600}.vehicle td{width:25%}.empty{padding:24px;text-align:center;color:#64748b;border:1px solid #cbd5e1}@media print{body{margin:12mm}.vehicle{break-inside:avoid}header,.summary{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+      </style></head><body><header><h1>Fleet Vehicle Details</h1><p>Vehicle inventory and compliance summary</p></header><div class="summary"><strong>Total vehicles:</strong> ${vehicles.length} &nbsp; · &nbsp; <strong>Generated:</strong> ${escapeHtml(generatedAt)}</div>${vehicleRows || '<div class="empty">No vehicles available to export.</div>'}</body></html>`);
+    printWindow.onafterprint = () => {
+      printWindow.close();
+      setExportingPdf(false);
+    };
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+      setExportingPdf(false);
+    };
+    printWindow.document.close();
   }
 
   async function handleCreate() {
@@ -373,7 +445,25 @@ export function VehiclesPage() {
               "&:hover": { bgcolor: "#f1f5f9", borderColor: "#94a3b8" },
             }}
           >
-            {exporting ? "Generating..." : "Export Compliance (CSV)"}
+            {exporting ? "Generating..." : "Export CSV"}
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<DownloadRoundedIcon />}
+            onClick={handleExportPdf}
+            disabled={exportingPdf || vehicles.length === 0}
+            sx={{
+              borderColor: "#cbd5e1",
+              color: "#334155",
+              fontWeight: 700,
+              textTransform: "none",
+              borderRadius: 2,
+              bgcolor: "#ffffff",
+              "&:hover": { bgcolor: "#f1f5f9", borderColor: "#94a3b8" },
+            }}
+          >
+            {exportingPdf ? "Preparing PDF..." : "Export PDF"}
           </Button>
 
           <Button

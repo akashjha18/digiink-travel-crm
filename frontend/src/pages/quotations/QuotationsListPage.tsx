@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -18,6 +18,11 @@ import {
   IconButton,
   Tooltip,
   Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Autocomplete,
 } from "@mui/material";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
@@ -30,7 +35,10 @@ import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import HourglassEmptyRoundedIcon from "@mui/icons-material/HourglassEmptyRounded";
 import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
 import RequestQuoteRoundedIcon from "@mui/icons-material/RequestQuoteRounded";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import { createFilterOptions } from "@mui/material/Autocomplete";
 import { apiClient } from "../../api/client";
+import { useAuth } from "../../hooks/useAuth";
 
 const STATUS_CONFIG: Record<
   string,
@@ -44,9 +52,17 @@ const STATUS_CONFIG: Record<
 };
 
 const STATUS_OPTIONS = ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"];
+const filterEnquiryOptions = createFilterOptions<any>();
 
 export function QuotationsListPage() {
+  const navigate = useNavigate();
+  const { auth } = useAuth();
   const [quotations, setQuotations] = useState<any[]>([]);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [enquiries, setEnquiries] = useState<any[]>([]);
+  const [selectedEnquiryId, setSelectedEnquiryId] = useState("");
+  const [createError, setCreateError] = useState("");
+  const [loadingEnquiries, setLoadingEnquiries] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -65,6 +81,20 @@ export function QuotationsListPage() {
   useEffect(() => {
     load();
   }, [statusFilter]);
+
+  async function openCreateDialog() {
+    setCreateOpen(true);
+    setCreateError("");
+    setLoadingEnquiries(true);
+    try {
+      const { data } = await apiClient.get("/enquiries");
+      setEnquiries(data.data ?? []);
+    } catch (error: any) {
+      setCreateError(error.response?.data?.message || "Could not load leads.");
+    } finally {
+      setLoadingEnquiries(false);
+    }
+  }
 
   const filteredQuotations = useMemo(() => {
     return quotations.filter((q) => {
@@ -129,7 +159,49 @@ export function QuotationsListPage() {
             Manage cost estimates, version tracking, and conversion to confirmed travel bookings.
           </Typography>
         </Box>
+        {(auth?.isClientAdmin || auth?.permissions?.quotations?.add) && (
+          <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreateDialog} sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}>
+            Create Quotation
+          </Button>
+        )}
       </Box>
+
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ fontWeight: 800 }}>Create Quotation</DialogTitle>
+        <DialogContent sx={{ pt: "12px !important" }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Select the lead this quotation is for. You can add the pricing and itinerary in the next step.
+          </Typography>
+          <Autocomplete
+            options={enquiries}
+            value={enquiries.find((enquiry) => enquiry.id === selectedEnquiryId) ?? null}
+            loading={loadingEnquiries}
+            disabled={loadingEnquiries || !enquiries.length}
+            filterOptions={(options, params) => filterEnquiryOptions(options, params)}
+            getOptionLabel={(enquiry: any) => enquiry ? `${enquiry.customer?.name || "Customer"}${enquiry.customer?.phone ? ` · ${enquiry.customer.phone}` : ""}${enquiry.destination ? ` · ${enquiry.destination}` : ""}` : ""}
+            isOptionEqualToValue={(option: any, value: any) => option.id === value.id}
+            onChange={(_, enquiry: any) => setSelectedEnquiryId(enquiry?.id ?? "")}
+            noOptionsText="No matching leads"
+            renderInput={(params) => <TextField {...params} label="Lead / Customer" placeholder="Type to search leads or customers" />}
+          />
+          {!loadingEnquiries && !enquiries.length && !createError && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+              No leads found. Create a lead first, then return here to prepare its quotation.
+            </Typography>
+          )}
+          {createError && <Typography color="error" variant="body2" sx={{ mt: 1.5 }}>{createError}</Typography>}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!selectedEnquiryId || loadingEnquiries}
+            onClick={() => navigate(`/app/quotations/new?enquiryId=${encodeURIComponent(selectedEnquiryId)}`)}
+          >
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* KPI Stats Strip */}
       <Box

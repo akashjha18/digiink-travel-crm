@@ -124,17 +124,10 @@ http://localhost:4000/health; a healthy response is
 
 Redis is optional for the regular local app. The subscription-lifecycle
 and automation BullMQ jobs are not started by default in
-`backend/src/server.ts`. To enable them, start Redis and explicitly
-enable the corresponding job imports in the server entry point. The
-included `docker-compose.yml` starts Redis if Docker Compose is
-installed:
-
-```powershell
-docker compose up -d redis
-```
-
-Set `REDIS_URL` in `backend\.env` to the address reachable by the backend
-(for a local Redis service, `redis://localhost:6379`).
+`backend/src/server.ts`. To enable them, run a local Redis service and
+explicitly enable the corresponding job imports in the server entry
+point. Set `REDIS_URL` in `backend\.env` to the address reachable by the
+backend (for a local Redis service, `redis://localhost:6379`).
 
 ## Useful commands
 
@@ -182,3 +175,5 @@ to real users.
 - [API reference](API.md)
 - [Database notes](DATABASE.md)
 - [Deployment notes](DEPLOYMENT.md)
+- [Staging environment setup](STAGING.md)
+- [Production launch plan](PRODUCTION_LAUNCH_PLAN.md)

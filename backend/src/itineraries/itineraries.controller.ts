@@ -11,6 +11,7 @@ import { scopeTenant } from "../guards/tenant-scope.guard";
 import { requireEntitlement } from "../guards/entitlement.guard";
 import { requirePermission } from "../guards/rbac.guard";
 import { logTenantAction } from "../audit/audit.service";
+import { ensureUploadDirectory } from "../common/uploads";
 
 export const itinerariesRouter = Router();
 
@@ -18,8 +19,7 @@ export const itinerariesRouter = Router();
 itinerariesRouter.use(authenticate, scopeTenant(), requireEntitlement("quotation"));
 
 // Photo upload directory for itineraries
-const itineraryUploadDir = path.resolve(__dirname, "../../uploads/itineraries");
-fs.mkdirSync(itineraryUploadDir, { recursive: true });
+const itineraryUploadDir = ensureUploadDirectory("itineraries");
 
 const itineraryPhotoUpload = multer({
   storage: multer.diskStorage({

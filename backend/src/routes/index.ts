@@ -39,15 +39,14 @@ import { prisma } from "../db/prisma";
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
 import { fail } from "../common/response";
 import { logTenantAction } from "../audit/audit.service";
 import { requirePermission } from "../guards/rbac.guard";
+import { ensureUploadDirectory } from "../common/uploads";
 
 export const apiRouter = Router();
 
-const avatarDirectory = path.resolve(__dirname, "../../uploads/avatars");
-fs.mkdirSync(avatarDirectory, { recursive: true });
+const avatarDirectory = ensureUploadDirectory("avatars");
 const avatarUpload = multer({
   storage: multer.diskStorage({
     destination: avatarDirectory,

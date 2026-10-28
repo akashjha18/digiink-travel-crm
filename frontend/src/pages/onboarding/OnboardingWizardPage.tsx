@@ -2,16 +2,21 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box, Paper, Stepper, Step, StepLabel, Typography, TextField, Button,
-  Grid, List, ListItem, ListItemText,
+  Grid, List, ListItem, ListItemText, Alert,
 } from "@mui/material";
 import { apiClient } from "../../api/client";
+import { useAuth } from "../../hooks/useAuth";
+import { getClientLanding } from "../../utils/clientLanding";
 
 // Onboarding wizard (SRS section 13): Company Profile -> Business Info ->
 // Branch Setup (Enterprise/multi_branch only) -> Finish.
 export function OnboardingWizardPage() {
   const navigate = useNavigate();
+  const { auth, setAuth } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
   const [multiBranchEntitled, setMultiBranchEntitled] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [profile, setProfile] = useState({
     companyName: "", logoUrl: "", address: "", gstNumber: "", phone: "", email: "",
     businessType: "", currency: "INR",
@@ -23,6 +28,11 @@ export function OnboardingWizardPage() {
 
   useEffect(() => {
     apiClient.get("/onboarding/status").then(({ data }) => {
+      if (data.data.onboardingCompleted) {
+        if (auth) setAuth({ ...auth, onboardingCompleted: true });
+        navigate(getClientLanding(auth?.permissions), { replace: true });
+        return;
+      }
       setMultiBranchEntitled(data.data.multiBranchEntitled);
       setBranches(data.data.branches ?? []);
       if (data.data.companyProfile) {
@@ -33,7 +43,9 @@ export function OnboardingWizardPage() {
           businessType: businessType ?? "", currency: currency ?? "INR",
         });
       }
-    });
+    }).catch((err) => {
+      setStatusError(err.response?.data?.message ?? "Could not load onboarding status");
+    }).finally(() => setStatusLoading(false));
   }, []);
 
   const steps = multiBranchEntitled
@@ -65,6 +77,7 @@ export function OnboardingWizardPage() {
 
   async function finish() {
     await apiClient.post("/onboarding/complete");
+    if (auth) setAuth({ ...auth, onboardingCompleted: true });
     navigate("/app/dashboard");
   }
 
@@ -82,6 +95,9 @@ export function OnboardingWizardPage() {
   return (
     <Box display="flex" justifyContent="center" alignItems="flex-start" minHeight="100vh" bgcolor="grey.100" pt={6}>
       <Paper sx={{ p: 4, width: 560 }}>
+        {statusError && <Alert severity="error" sx={{ mb: 2 }}>{statusError}</Alert>}
+        {statusLoading && <Typography color="text.secondary">Loading account setup...</Typography>}
+        {!statusLoading && !statusError && <>
         <Typography variant="h5" gutterBottom>Welcome — let's set up your account</Typography>
         <Stepper activeStep={activeStep} sx={{ my: 3 }}>
           {steps.map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
@@ -134,6 +150,7 @@ export function OnboardingWizardPage() {
             {activeStep === steps.length - 1 ? "Finish" : "Next"}
           </Button>
         </Box>
+        </>}
       </Paper>
     </Box>
   );

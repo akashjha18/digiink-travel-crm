@@ -14,6 +14,9 @@ const transporter = env.smtp.host
 
 export async function sendMail(to: string, subject: string, text: string) {
   if (!transporter) {
+    if (env.nodeEnv === "production") {
+      throw new Error("SMTP is not configured; refusing to write email content to production logs");
+    }
     console.log(`[email:dev-mode] to=${to} subject="${subject}" body="${text}"`);
     return;
   }

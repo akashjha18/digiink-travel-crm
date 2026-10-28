@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -17,6 +17,11 @@ import {
   IconButton,
   Tooltip,
   Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  MenuItem,
 } from "@mui/material";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
@@ -26,9 +31,19 @@ import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded";
 import { apiClient } from "../../api/client";
+import { useAuth } from "../../hooks/useAuth";
 
 export function InvoicesListPage() {
+  const navigate = useNavigate();
+  const { auth } = useAuth();
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [gstRate, setGstRate] = useState(5);
+  const [hsnSac, setHsnSac] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
@@ -46,6 +61,41 @@ export function InvoicesListPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const canCreate = Boolean(auth?.isClientAdmin || auth?.permissions?.invoices?.add);
+  const availableBookings = useMemo(() => {
+    const invoicedBookingIds = new Set(invoices.map((invoice) => invoice.bookingId));
+    return bookings.filter((booking) => booking.status === "CONFIRMED" && !invoicedBookingIds.has(booking.id));
+  }, [bookings, invoices]);
+
+  async function openCreateDialog() {
+    setCreateError("");
+    setCreateOpen(true);
+    try {
+      const { data } = await apiClient.get("/bookings", { params: { status: "CONFIRMED" } });
+      setBookings(data.data ?? []);
+    } catch (error: any) {
+      setCreateError(error.response?.data?.message || "Could not load confirmed bookings.");
+    }
+  }
+
+  async function createInvoice() {
+    if (!selectedBookingId) return;
+    setCreating(true);
+    setCreateError("");
+    try {
+      const { data } = await apiClient.post("/invoices", {
+        bookingId: selectedBookingId,
+        hsnSac: hsnSac || undefined,
+        gstRatePercent: gstRate,
+      });
+      navigate(`/app/invoices/${data.data.id}`);
+    } catch (error: any) {
+      setCreateError(error.response?.data?.message || "Could not create the invoice.");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
@@ -105,7 +155,42 @@ export function InvoicesListPage() {
             Formal tax invoices generated across verified bookings with automated GST calculations.
           </Typography>
         </Box>
+        {canCreate && (
+          <Button variant="contained" startIcon={<ReceiptLongRoundedIcon />} onClick={openCreateDialog}>
+            Create Invoice
+          </Button>
+        )}
       </Box>
+
+      <Dialog open={createOpen} onClose={() => !creating && setCreateOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Create invoice</DialogTitle>
+        <DialogContent sx={{ display: "grid", gap: 2, pt: "12px !important" }}>
+          <TextField
+            select
+            label="Confirmed booking"
+            value={selectedBookingId}
+            onChange={(event) => setSelectedBookingId(event.target.value)}
+            disabled={!availableBookings.length}
+            fullWidth
+          >
+            {availableBookings.map((booking) => (
+              <MenuItem key={booking.id} value={booking.id}>
+                {booking.customer?.name || "Customer"} · {booking.pickup || "Booking"} → {booking.drop || ""} · ₹{((booking.amountInPaise || 0) / 100).toLocaleString("en-IN")}
+              </MenuItem>
+            ))}
+          </TextField>
+          {!availableBookings.length && !createError && (
+            <Typography variant="body2" color="text.secondary">No confirmed bookings are available for invoicing.</Typography>
+          )}
+          <TextField label="HSN/SAC (optional)" value={hsnSac} onChange={(event) => setHsnSac(event.target.value)} />
+          <TextField label="GST rate (%)" type="number" inputProps={{ min: 0, max: 100 }} value={gstRate} onChange={(event) => setGstRate(Number(event.target.value))} />
+          {createError && <Typography color="error" variant="body2">{createError}</Typography>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
+          <Button variant="contained" onClick={createInvoice} disabled={!selectedBookingId || creating}>Create Invoice</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* KPI Stat Cards */}
       <Box

@@ -60,7 +60,8 @@ quotationsRouter.get("/:id", requirePermission("quotations", "view"), async (req
       include: { customer: true, enquiry: true, booking: true },
     });
     if (!quotation) return fail(res, 404, "Quotation not found", "NOT_FOUND");
-    return ok(res, quotation);
+    const companyProfile = await prisma.companyProfile.findUnique({ where: { clientId: req.clientId! } });
+    return ok(res, { ...quotation, companyProfile });
   } catch (err) {
     next(err);
   }

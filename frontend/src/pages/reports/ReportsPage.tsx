@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { Component, useCallback, useEffect, useRef, useState } from "react";
 import {
   Box,
   Typography,
@@ -88,6 +88,35 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   CANCELLED: "#ef4444",
 };
 
+type ReportBoundaryProps = { children: React.ReactNode };
+type ReportBoundaryState = { failed: boolean };
+
+class ReportBoundary extends Component<ReportBoundaryProps, ReportBoundaryState> {
+  state: ReportBoundaryState = { failed: false };
+
+  static getDerivedStateFromError(): ReportBoundaryState {
+    return { failed: true };
+  }
+
+  render() {
+    if (this.state.failed) {
+      return (
+        <Paper elevation={0} sx={{ p: 6, textAlign: "center", borderRadius: 4, border: "1px solid #fecaca", bgcolor: "#fff" }}>
+          <Typography variant="h6" fontWeight={800} color="#991b1b">This report could not be displayed</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Try another report or reload this page. The rest of the CRM is still available.
+          </Typography>
+        </Paper>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function asRows(value: unknown): Record<string, any>[] {
+  return Array.isArray(value) ? value.filter((row): row is Record<string, any> => !!row && typeof row === "object") : [];
+}
+
 export function ReportsPage() {
   const [tab, setTab] = useState(0);
   const [from, setFrom] = useState("");
@@ -95,8 +124,9 @@ export function ReportsPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [advancedEntitled, setAdvancedEntitled] = useState(true);
   const [loading, setLoading] = useState(false);
+  const requestId = useRef(0);
 
-  const report = REPORTS[tab];
+  const report = REPORTS[tab] ?? REPORTS[0];
 
   function setPreset(preset: "all" | "thisMonth" | "last30" | "thisQuarter") {
     const now = new Date();
@@ -141,22 +171,30 @@ export function ReportsPage() {
     return rows;
   }
 
-  function load() {
+  const load = useCallback(() => {
+    const currentRequest = ++requestId.current;
     setLoading(true);
+    setRows([]);
     apiClient
       .get(`/reports/${report.key}`, { params: { from: from || undefined, to: to || undefined } })
       .then(({ data }) => {
-        setRows(data.data ?? []);
+        if (currentRequest !== requestId.current) return;
+        setRows(asRows(data?.data));
         setAdvancedEntitled(true);
       })
       .catch((err) => {
+        if (currentRequest !== requestId.current) return;
         if (err.response?.data?.code === "FEATURE_NOT_ENTITLED") setAdvancedEntitled(false);
         setRows([]);
       })
-      .finally(() => setLoading(false));
-  }
+      .finally(() => {
+        if (currentRequest === requestId.current) setLoading(false);
+      });
+  }, [report.key, from, to]);
 
-  useEffect(load, [tab, from, to]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <Box sx={{ p: { xs: 2, sm: 3, md: 4.5 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
@@ -509,7 +547,13 @@ export function ReportsPage() {
           </Box>
         </Paper>
       ) : (
-        <ReportContent reportKey={report.key} rows={rows} />
+        <ReportBoundary key={report.key}>
+          {loading && rows.length === 0 ? (
+            <Paper elevation={0} sx={{ p: 6, textAlign: "center", borderRadius: 4, border: "1px solid #e2e8f0", bgcolor: "#fff" }}>
+              <Typography variant="body1" fontWeight={700} color="text.secondary">Loading report…</Typography>
+            </Paper>
+          ) : <ReportContent reportKey={report.key} rows={rows} />}
+        </ReportBoundary>
       )}
     </Box>
   );
@@ -682,8 +726,8 @@ function ReportContent({ reportKey, rows }: { reportKey: string; rows: any[] }) 
     const totalAmount = rows.reduce((acc, r) => acc + (r.totalAmountInPaise || 0), 0);
 
     const donutData = rows.map((r) => ({
-      name: r.status.replace(/_/g, " "),
-      value: r.count,
+      name: String(r.status ?? "Unknown").replace(/_/g, " "),
+      value: Number(r.count) || 0,
       color: STATUS_COLOR_MAP[r.status] || "#94a3b8",
     }));
 
@@ -757,7 +801,7 @@ function ReportContent({ reportKey, rows }: { reportKey: string; rows: any[] }) 
                       <TableCell sx={{ py: 2, px: 3 }}>
                         <Chip
                           size="small"
-                          label={r.status.replace(/_/g, " ")}
+                          label={String(r.status ?? "Unknown").replace(/_/g, " ")}
                           sx={{
                             fontWeight: 800,
                             fontSize: "0.72rem",
@@ -1063,7 +1107,7 @@ function ReportContent({ reportKey, rows }: { reportKey: string; rows: any[] }) 
                 </TableRow>
               </TableHead>
               <TableBody>
-                {agent.months.map((m: any) => (
+                {(Array.isArray(agent.months) ? agent.months : []).map((m: any) => (
                   <TableRow key={m.month} hover sx={{ "&:last-child td": { border: 0 } }}>
                     <TableCell sx={{ py: 1.75, px: 3.5 }}>
                       <Typography variant="body2" fontWeight={700} color="#334155">

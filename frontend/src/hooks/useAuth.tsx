@@ -15,11 +15,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const refreshToken = localStorage.getItem("refreshToken");
     const role = localStorage.getItem("role") as AuthState["role"] | null;
     const isClientAdmin = localStorage.getItem("isClientAdmin") === "true";
+    const onboardingCompletedValue = localStorage.getItem("onboardingCompleted");
+    const onboardingCompleted = onboardingCompletedValue === null ? undefined : onboardingCompletedValue === "true";
     const permissionsJson = localStorage.getItem("permissions");
     const permissions = permissionsJson ? JSON.parse(permissionsJson) : undefined;
     const subscriptionStatus = (localStorage.getItem("subscriptionStatus") as AuthState["subscriptionStatus"]) || undefined;
     if (accessToken && refreshToken && role) {
-      return { accessToken, refreshToken, role, isClientAdmin, permissions, subscriptionStatus };
+      return { accessToken, refreshToken, role, isClientAdmin, permissions, subscriptionStatus, onboardingCompleted };
     }
     return null;
   });
@@ -31,6 +33,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("refreshToken", next.refreshToken);
       localStorage.setItem("role", next.role);
       localStorage.setItem("isClientAdmin", String(Boolean(next.isClientAdmin)));
+      if (next.onboardingCompleted !== undefined) {
+        localStorage.setItem("onboardingCompleted", String(next.onboardingCompleted));
+      } else {
+        localStorage.removeItem("onboardingCompleted");
+      }
       if (next.permissions) localStorage.setItem("permissions", JSON.stringify(next.permissions));
       if (next.subscriptionStatus) localStorage.setItem("subscriptionStatus", next.subscriptionStatus);
       else localStorage.removeItem("subscriptionStatus");
@@ -39,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("refreshToken");
       localStorage.removeItem("role");
       localStorage.removeItem("isClientAdmin");
+      localStorage.removeItem("onboardingCompleted");
       localStorage.removeItem("permissions");
       localStorage.removeItem("subscriptionStatus");
     }

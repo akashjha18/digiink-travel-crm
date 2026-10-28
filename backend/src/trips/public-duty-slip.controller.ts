@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { ok, fail } from "../common/response";
+import { ensureUploadDirectory } from "../common/uploads";
 
 export const publicDutySlipRouter = Router({ mergeParams: true });
 
@@ -77,10 +78,7 @@ publicDutySlipRouter.post("/:shareToken/upload", async (req, res, next) => {
       const cleanExt = ext.replace("jpeg", "jpg");
       const fileName = `ds_${dutySlip.id.slice(-6)}_${Date.now()}_${crypto.randomBytes(4).toString("hex")}.${cleanExt}`;
 
-      const uploadsDir = path.resolve(__dirname, "../../uploads/duty-slips");
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
+      const uploadsDir = ensureUploadDirectory("duty-slips");
 
       const filePath = path.join(uploadsDir, fileName);
       fs.writeFileSync(filePath, buffer);

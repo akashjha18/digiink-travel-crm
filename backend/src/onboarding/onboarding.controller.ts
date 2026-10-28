@@ -8,12 +8,11 @@ import { scopeTenant } from "../guards/tenant-scope.guard";
 import { logTenantAction } from "../audit/audit.service";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
+import { ensureUploadDirectory } from "../common/uploads";
 
 export const onboardingRouter = Router();
 
-const logoDirectory = path.resolve(__dirname, "../../uploads/company-logos");
-fs.mkdirSync(logoDirectory, { recursive: true });
+const logoDirectory = ensureUploadDirectory("company-logos");
 const logoUpload = multer({
   storage: multer.diskStorage({
     destination: logoDirectory,

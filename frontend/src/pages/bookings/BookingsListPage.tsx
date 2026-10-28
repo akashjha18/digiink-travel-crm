@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { useEffect, useState, useMemo, type FormEvent } from "react";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -18,7 +18,13 @@ import {
   IconButton,
   Tooltip,
   Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Autocomplete,
 } from "@mui/material";
+import { createFilterOptions } from "@mui/material/Autocomplete";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded";
@@ -28,7 +34,9 @@ import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import { apiClient } from "../../api/client";
+import { useAuth } from "../../hooks/useAuth";
 
 const STATUS_CONFIG: Record<
   string,
@@ -41,8 +49,23 @@ const STATUS_CONFIG: Record<
 };
 
 const STATUS_OPTIONS = ["CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
+const filterCustomerOptions = createFilterOptions<any>();
 
 export function BookingsListPage() {
+  const navigate = useNavigate();
+  const { auth } = useAuth();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [bookingForm, setBookingForm] = useState({
+    customerId: "", customerName: "", customerPhone: "", customerEmail: "", pickup: "", drop: "", travelStart: "", travelEnd: "", vehicleType: "",
+    distance: "", duration: "", driverId: "", vehicleId: "", fare: "", status: "CONFIRMED", paymentStatus: "UNPAID", paidAmount: "", notes: "",
+  });
   const [bookings, setBookings] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -62,6 +85,45 @@ export function BookingsListPage() {
   useEffect(() => {
     load();
   }, [statusFilter]);
+
+  async function createBooking(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCreating(true);
+    setCreateError("");
+    try {
+      const { data } = await apiClient.post("/bookings", {
+        ...bookingForm,
+        customerId: creatingCustomer ? undefined : bookingForm.customerId || undefined,
+        customerName: creatingCustomer ? bookingForm.customerName : undefined,
+        customerPhone: creatingCustomer ? bookingForm.customerPhone : undefined,
+        customerEmail: creatingCustomer ? bookingForm.customerEmail || undefined : undefined,
+        fareInPaise: Math.round(Number(bookingForm.fare) * 100),
+        paidAmountInPaise: bookingForm.paidAmount ? Math.round(Number(bookingForm.paidAmount) * 100) : undefined,
+        travelStart: bookingForm.travelStart || undefined,
+        travelEnd: bookingForm.travelEnd || undefined,
+        driverId: bookingForm.driverId || undefined,
+        vehicleId: bookingForm.vehicleId || undefined,
+      });
+      navigate(`/app/bookings/${data.data.id}`);
+    } catch (error: any) {
+      setCreateError(error.response?.data?.message || "Could not create the booking.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function openCreateDialog() {
+    setCreateError("");
+    setCreateOpen(true);
+    try {
+      const { data } = await apiClient.get("/customers");
+      setCustomers(data.data ?? []);
+    } catch (error: any) {
+      setCreateError(error.response?.data?.message || "Could not load customers.");
+    }
+    apiClient.get("/drivers").then(({ data }) => setDrivers(data.data ?? [])).catch(() => setDrivers([]));
+    apiClient.get("/vehicles").then(({ data }) => setVehicles(data.data ?? [])).catch(() => setVehicles([]));
+  }
 
   const filteredBookings = useMemo(() => {
     return bookings.filter((b) => {
@@ -126,7 +188,94 @@ export function BookingsListPage() {
             Track confirmed tour operations, fleet & driver allocations, and transit status.
           </Typography>
         </Box>
+        {(auth?.isClientAdmin || auth?.permissions?.bookings?.add) && (
+          <Button
+            variant="contained"
+            startIcon={<AddRoundedIcon />}
+            onClick={openCreateDialog}
+            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+          >
+            Create Booking
+          </Button>
+        )}
       </Box>
+
+      <Dialog open={createOpen} onClose={() => !creating && setCreateOpen(false)} fullWidth maxWidth="sm">
+        <Box component="form" onSubmit={createBooking}>
+          <DialogTitle sx={{ fontWeight: 800 }}>Create Booking</DialogTitle>
+          <DialogContent sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2, pt: "12px !important" }}>
+            <Autocomplete
+              freeSolo
+              options={customers}
+              value={creatingCustomer
+                ? { isNew: true, name: bookingForm.customerName, inputValue: bookingForm.customerName }
+                : customers.find((customer) => customer.id === bookingForm.customerId) ?? null}
+              inputValue={customerSearch}
+              filterOptions={(options, params) => {
+                const filtered = filterCustomerOptions(options, params);
+                const typedName = params.inputValue.trim();
+                const alreadyExists = options.some((customer) => customer.name?.toLowerCase() === typedName.toLowerCase());
+                if (typedName && !alreadyExists) filtered.push({ isNew: true, inputValue: typedName, name: `Add "${typedName}" as new customer` });
+                return filtered;
+              }}
+              getOptionLabel={(option: any) => typeof option === "string" ? option : option.isNew ? option.inputValue : `${option.name} · ${option.phone}`}
+              isOptionEqualToValue={(option: any, value: any) => option.id ? option.id === value.id : option.inputValue === value.inputValue}
+              noOptionsText="Type a name to add a new customer"
+              onInputChange={(_, value, reason) => {
+                if (reason === "input" || reason === "clear") setCustomerSearch(value);
+              }}
+              onChange={(_, value: any) => {
+                if (typeof value === "string" || value?.isNew) {
+                  const name = typeof value === "string" ? value : value.inputValue;
+                  setCreatingCustomer(true);
+                  setBookingForm((form) => ({ ...form, customerId: "", customerName: name, customerPhone: "", customerEmail: "" }));
+                  setCustomerSearch(name);
+                } else {
+                  setCreatingCustomer(false);
+                  setBookingForm((form) => ({ ...form, customerId: value?.id ?? "", customerName: "", customerPhone: "", customerEmail: "" }));
+                  setCustomerSearch(value ? `${value.name} · ${value.phone}` : "");
+                }
+              }}
+              renderOption={(props, option: any) => <li {...props} key={option.id ?? `new-${option.inputValue}`}>{option.isNew ? `+ ${option.name}` : `${option.name} · ${option.phone}`}</li>}
+              renderInput={(params) => <TextField {...params} label="Customer name" required fullWidth />}
+              sx={{ gridColumn: { sm: "1 / -1" } }}
+            />
+            {creatingCustomer && <>
+              <TextField label="Customer phone" value={bookingForm.customerPhone} onChange={(e) => setBookingForm({ ...bookingForm, customerPhone: e.target.value })} required fullWidth />
+              <TextField label="Customer email (optional)" type="email" value={bookingForm.customerEmail} onChange={(e) => setBookingForm({ ...bookingForm, customerEmail: e.target.value })} fullWidth />
+            </>}
+            <TextField label="Pickup" value={bookingForm.pickup} onChange={(e) => setBookingForm({ ...bookingForm, pickup: e.target.value })} required fullWidth />
+            <TextField label="Drop" value={bookingForm.drop} onChange={(e) => setBookingForm({ ...bookingForm, drop: e.target.value })} required fullWidth />
+            <TextField label="Pickup date & time" type="datetime-local" value={bookingForm.travelStart} onChange={(e) => setBookingForm({ ...bookingForm, travelStart: e.target.value })} InputLabelProps={{ shrink: true }} fullWidth />
+            <TextField label="Return date & time" type="datetime-local" value={bookingForm.travelEnd} onChange={(e) => setBookingForm({ ...bookingForm, travelEnd: e.target.value })} InputLabelProps={{ shrink: true }} fullWidth />
+            <TextField label="Vehicle type" value={bookingForm.vehicleType} onChange={(e) => setBookingForm({ ...bookingForm, vehicleType: e.target.value })} fullWidth />
+            <TextField label="Fare (₹)" type="number" inputProps={{ min: 0.01, step: "0.01" }} value={bookingForm.fare} onChange={(e) => setBookingForm({ ...bookingForm, fare: e.target.value })} required fullWidth />
+            <TextField label="Distance (km)" value={bookingForm.distance} onChange={(e) => setBookingForm({ ...bookingForm, distance: e.target.value })} fullWidth />
+            <TextField label="Duration" value={bookingForm.duration} onChange={(e) => setBookingForm({ ...bookingForm, duration: e.target.value })} fullWidth />
+            <TextField select label="Assign Driver" value={bookingForm.driverId} onChange={(e) => setBookingForm({ ...bookingForm, driverId: e.target.value })} fullWidth>
+              <MenuItem value="">Unassigned</MenuItem>
+              {drivers.map((driver) => <MenuItem key={driver.id} value={driver.id}>{driver.name}</MenuItem>)}
+            </TextField>
+            <TextField select label="Assign Vehicle" value={bookingForm.vehicleId} onChange={(e) => setBookingForm({ ...bookingForm, vehicleId: e.target.value })} fullWidth>
+              <MenuItem value="">Unassigned</MenuItem>
+              {vehicles.map((vehicle) => <MenuItem key={vehicle.id} value={vehicle.id}>{vehicle.registrationNumber} · {vehicle.vehicleName || vehicle.vehicleType}</MenuItem>)}
+            </TextField>
+            <TextField select label="Booking Status" value={bookingForm.status} onChange={(e) => setBookingForm({ ...bookingForm, status: e.target.value })} fullWidth>
+              <MenuItem value="CONFIRMED">Confirmed</MenuItem><MenuItem value="IN_PROGRESS">In Progress</MenuItem><MenuItem value="COMPLETED">Completed</MenuItem><MenuItem value="CANCELLED">Cancelled</MenuItem>
+            </TextField>
+            <TextField select label="Payment Status" value={bookingForm.paymentStatus} onChange={(e) => setBookingForm({ ...bookingForm, paymentStatus: e.target.value })} fullWidth>
+              <MenuItem value="UNPAID">Unpaid</MenuItem><MenuItem value="PARTIAL">Partial</MenuItem><MenuItem value="PAID">Paid</MenuItem>
+            </TextField>
+            {bookingForm.paymentStatus === "PARTIAL" && <TextField label="Paid amount (₹)" type="number" inputProps={{ min: 0.01, step: "0.01" }} value={bookingForm.paidAmount} onChange={(e) => setBookingForm({ ...bookingForm, paidAmount: e.target.value })} required fullWidth />}
+            <TextField label="Notes" value={bookingForm.notes} onChange={(e) => setBookingForm({ ...bookingForm, notes: e.target.value })} multiline minRows={2} fullWidth sx={{ gridColumn: { sm: "1 / -1" } }} />
+            {createError && <Typography color="error" variant="body2" sx={{ gridColumn: { sm: "1 / -1" } }}>{createError}</Typography>}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
+            <Button type="submit" variant="contained" disabled={creating}>Create Booking</Button>
+          </DialogActions>
+        </Box>
+      </Dialog>
 
       {/* KPI Stats Strip */}
       <Box

@@ -10,18 +10,10 @@ import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../hooks/useAuth";
+import { getClientLanding } from "../../utils/clientLanding";
 import logo from "../../assets/digiink-logo.jpeg";
 
 type Audience = "client" | "admin";
-
-function getClientLanding(permissions: Record<string, { view?: boolean }> | undefined) {
-  if (permissions?.dashboard?.view) return "/app/dashboard";
-  if (permissions?.enquiries?.view) return "/app/enquiries";
-  if (permissions?.bookings?.view) return "/app/bookings";
-  if (permissions?.customers?.view) return "/app/customers";
-  if (permissions?.reports?.view) return "/app/reports";
-  return "/app/profile";
-}
 
 const COPY: Record<Audience, {
   heading: string; subheading: string; emailPlaceholder: string;
@@ -97,7 +89,16 @@ export function LoginForm({ audience }: { audience: Audience }) {
       // will be true instead and this branch needs to route to
       // /verify-otp with data.data.otpToken, same as before.
       const { accessToken, refreshToken, subscriptionStatus, mustChangePassword, onboardingCompleted, permissions, isClientAdmin } = data.data;
-      setAuth({ accessToken, refreshToken, role, subscriptionStatus, mustChangePassword, permissions, isClientAdmin });
+      setAuth({
+        accessToken,
+        refreshToken,
+        role,
+        subscriptionStatus,
+        mustChangePassword,
+        onboardingCompleted,
+        permissions,
+        isClientAdmin,
+      });
 
       if (subscriptionStatus === "LOCKED") {
         navigate("/payment-renewal");

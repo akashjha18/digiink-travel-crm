@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Box, Button, Paper, TextField, Typography, Alert } from "@mui/material";
 import { apiClient } from "../../api/client";
 import { useAuth } from "../../hooks/useAuth";
+import { getClientLanding } from "../../utils/clientLanding";
 
 export function LoginPage() {
   const [email, setEmail] = useState("");
@@ -28,8 +29,8 @@ export function LoginPage() {
       // directly. If OTP gets re-enabled later, data.data.otpRequired
       // will be true instead and this branch needs to route to
       // /verify-otp with data.data.otpToken, same as before.
-      const { accessToken, refreshToken, role, subscriptionStatus, mustChangePassword, onboardingCompleted } = data.data;
-      setAuth({ accessToken, refreshToken, role, subscriptionStatus, mustChangePassword });
+      const { accessToken, refreshToken, role, subscriptionStatus, mustChangePassword, onboardingCompleted, permissions, isClientAdmin } = data.data;
+      setAuth({ accessToken, refreshToken, role, subscriptionStatus, mustChangePassword, onboardingCompleted, permissions, isClientAdmin });
 
       if (subscriptionStatus === "LOCKED") {
         navigate("/payment-renewal");
@@ -38,7 +39,7 @@ export function LoginPage() {
       } else if (!onboardingCompleted) {
         navigate("/onboarding");
       } else {
-        navigate("/app/dashboard");
+        navigate(getClientLanding(permissions));
       }
     } catch (err: any) {
       setError(err.response?.data?.message ?? "Login failed");

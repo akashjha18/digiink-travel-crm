@@ -11,7 +11,6 @@ import {
   TableRow,
   TableCell,
   TableBody,
-  Divider,
   Avatar,
   IconButton,
   Tooltip,
@@ -30,6 +29,10 @@ import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
 import RouteRoundedIcon from "@mui/icons-material/RouteRounded";
 import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
+import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
+import EmailRoundedIcon from "@mui/icons-material/EmailRounded";
+import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { apiClient } from "../../api/client";
 
 const STATUS_CONFIG: Record<
@@ -121,6 +124,7 @@ export function QuotationDetailPage() {
             width: 100% !important;
             max-width: 100% !important;
           }
+          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>
 
@@ -353,215 +357,76 @@ export function QuotationDetailPage() {
         </Paper>
       </Box>
 
-      {/* Modern Invoice / Quotation Printable Document */}
+      {/* Printable quotation document */}
       <Paper
         elevation={0}
         className="print-container"
         sx={{
-          p: { xs: 3, md: 5 },
-          maxWidth: 820,
+          p: { xs: 2.5, sm: 4, md: 5 },
+          maxWidth: 1040,
           mx: "auto",
-          borderRadius: 3.5,
-          border: "1px solid #e2e8f0",
+          borderRadius: 2.5,
+          border: "1px solid #e5edf5",
           bgcolor: "#ffffff",
-          boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.04)",
+          boxShadow: "0 4px 20px -5px rgba(15, 23, 42, 0.06)",
         }}
       >
-        {/* Document Header */}
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={4}>
-          <Box>
-            <Typography
-              variant="h5"
-              fontWeight={900}
-              sx={{ color: "#0f172a", letterSpacing: "-0.03em" }}
-            >
-              PRICE ESTIMATE & ITINERARY
-            </Typography>
-            <Typography variant="caption" color="text.secondary" fontWeight={600}>
-              REF: QT-{id?.slice(-8).toUpperCase()} · VERSION {quotation.version}
-            </Typography>
+        <Box display="flex" justifyContent="space-between" alignItems="center" gap={2} mb={2.5} sx={{ minHeight: 112, position: "relative", overflow: "hidden" }}>
+          <Box component="svg" viewBox="0 0 620 190" preserveAspectRatio="none" aria-hidden="true" sx={{ position: "absolute", right: 0, bottom: 0, width: { xs: "75%", sm: "64%" }, height: "100%", zIndex: 0, pointerEvents: "none" }}>
+            <defs><linearGradient id="quotation-hill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#e5f1ef" stopOpacity="0.45" /><stop offset="100%" stopColor="#cfe3df" stopOpacity="0.9" /></linearGradient></defs>
+            <path d="M0 162 C58 150 86 130 128 133 C164 135 179 151 219 151 C258 151 276 132 310 133 C347 134 362 153 400 153 C450 153 473 129 518 132 C564 135 580 153 620 151 L620 190 L0 190Z" fill="#e5f1ef" />
+            <path d="M0 170 C71 161 113 147 162 151 C205 154 225 167 271 164 C319 161 341 119 378 93 C414 119 438 149 472 158 C516 169 559 152 620 161 L620 190 L0 190Z" fill="url(#quotation-hill)" />
+            <g fill="none" stroke="#b7d0cc" strokeWidth="4" strokeLinecap="round" opacity="0.72"><path d="M475 157 Q472 105 458 60" /><path d="M458 61 Q438 37 420 42 Q439 45 455 64 Q448 37 462 21 Q460 43 460 62 Q474 36 495 37 Q475 46 461 65 Q489 51 507 62 Q483 58 461 68" /><path d="M544 166 Q541 126 530 93" /><path d="M530 94 Q515 75 502 81 Q517 82 528 96 Q522 76 534 64 Q531 81 532 96 Q547 76 564 78 Q547 85 533 98 Q555 87 570 96 Q551 92 533 101" /></g>
+            <g fill="none" stroke="#b8d0d2" strokeWidth="3.5" strokeLinecap="round" opacity="0.8"><path d="M188 55 Q198 45 207 56 Q214 64 222 62" /><path d="M225 76 Q234 66 243 77 Q249 84 258 82" /></g>
           </Box>
-
-          <Box textAlign="right">
-            <Typography variant="h6" fontWeight={800} color="#2563eb">
-              DIGIINK TRAVEL CRM
-            </Typography>
-            <Typography variant="caption" color="text.secondary" display="block">
-              Corporate Travel Proposals
-            </Typography>
-          </Box>
-        </Box>
-
-        <Divider sx={{ mb: 3.5, borderColor: "#f1f5f9" }} />
-
-        {/* Customer & Route Meta Cards */}
-        <Box
-          sx={{
-            p: 2.5,
-            mb: 3.5,
-            borderRadius: 2.5,
-            bgcolor: "#f8fafc",
-            border: "1px solid #f1f5f9",
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-            gap: 2.5,
-          }}
-        >
-          <Box>
-            <Typography variant="caption" fontWeight={800} color="#64748b" textTransform="uppercase" letterSpacing="0.05em">
-              PREPARED FOR
-            </Typography>
-            <Box display="flex" alignItems="center" gap={1} mt={0.5}>
-              <PersonRoundedIcon sx={{ fontSize: 16, color: "#2563eb" }} />
-              <Typography variant="body2" fontWeight={800} color="#0f172a">
-                {quotation.customer?.name || "Valued Customer"}
-              </Typography>
-            </Box>
-            {quotation.customer?.phone && (
-              <Box display="flex" alignItems="center" gap={1} mt={0.25}>
-                <PhoneRoundedIcon sx={{ fontSize: 14, color: "#94a3b8" }} />
-                <Typography variant="caption" color="text.secondary" fontWeight={500}>
-                  {quotation.customer.phone}
-                </Typography>
+          <Box display="flex" alignItems="center" gap={2} minWidth={0} sx={{ position: "relative", zIndex: 1 }}>
+            {quotation.companyProfile?.logoUrl ? <Box component="img" src={quotation.companyProfile.logoUrl} alt={`${quotation.companyProfile.companyName || "Company"} logo`} sx={{ width: { xs: 64, sm: 88 }, height: { xs: 64, sm: 88 }, objectFit: "contain", borderRadius: 2.5, border: "1px solid #e5edf5", p: 1, flexShrink: 0, bgcolor: "#fff" }} /> : <Avatar sx={{ width: { xs: 64, sm: 88 }, height: { xs: 64, sm: 88 }, bgcolor: quotation.companyProfile?.primaryColor || "#0284c7", fontSize: 28, fontWeight: 800, flexShrink: 0 }}>{(quotation.companyProfile?.companyName || "T").slice(0, 1).toUpperCase()}</Avatar>}
+            <Box minWidth={0}>
+              <Typography variant="h4" fontWeight={900} color="#0f1e3a" sx={{ lineHeight: 1.15, fontSize: { xs: "1.45rem", sm: "2rem" }, overflowWrap: "anywhere" }}>{quotation.companyProfile?.companyName || "Travel Agency"}</Typography>
+              {quotation.companyProfile?.address && <Box display="flex" alignItems="center" gap={0.5} mt={0.4}><PlaceRoundedIcon sx={{ fontSize: 15, color: "#64748b" }} /><Typography variant="body2" color="text.secondary">{quotation.companyProfile.address}</Typography></Box>}
+              <Box display="flex" flexWrap="wrap" columnGap={2} rowGap={0.35} mt={0.45}>
+                {quotation.companyProfile?.phone && <Box display="flex" alignItems="center" gap={0.5}><PhoneRoundedIcon sx={{ fontSize: 15, color: "#64748b" }} /><Typography variant="body2" color="text.secondary">{quotation.companyProfile.phone}</Typography></Box>}
+                {quotation.companyProfile?.email && <Box display="flex" alignItems="center" gap={0.5}><EmailRoundedIcon sx={{ fontSize: 15, color: "#64748b" }} /><Typography variant="body2" color="text.secondary">{quotation.companyProfile.email}</Typography></Box>}
               </Box>
-            )}
+              {quotation.companyProfile?.gstNumber && <Typography variant="body2" color="text.secondary" fontWeight={600} mt={0.4}>GSTIN: <strong style={{ color: "#0f172a" }}>{quotation.companyProfile.gstNumber}</strong></Typography>}
+            </Box>
           </Box>
+          <Chip label="QUOTATION" icon={<ReceiptLongRoundedIcon sx={{ color: "#07834f !important" }} />} sx={{ bgcolor: "#eaf8f1", color: "#07834f", fontWeight: 800, borderRadius: 1.5, position: "absolute", zIndex: 2, top: 2, right: 4, px: 1, height: 40 }} />
+        </Box>
 
-          <Box>
-            <Typography variant="caption" fontWeight={800} color="#64748b" textTransform="uppercase" letterSpacing="0.05em">
-              TRAVEL ITINERARY
-            </Typography>
-            <Box display="flex" alignItems="center" gap={1} mt={0.5}>
-              <RouteRoundedIcon sx={{ fontSize: 16, color: "#2563eb" }} />
-              <Typography variant="body2" fontWeight={700} color="#334155">
-                {[quotation.enquiry?.source, quotation.enquiry?.destination].filter(Boolean).join(" → ") || "Open Route"}
-              </Typography>
-            </Box>
-            <Box display="flex" alignItems="center" gap={1} mt={0.25}>
-              <CalendarTodayRoundedIcon sx={{ fontSize: 14, color: "#94a3b8" }} />
-              <Typography variant="caption" color="text.secondary">
-                Date: {new Date(quotation.createdAt).toLocaleDateString("en-IN", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
-              </Typography>
-            </Box>
+        <Box display="grid" gridTemplateColumns={{ xs: "1fr", sm: "repeat(3, 1fr)" }} gap={1} px={2} py={1.5} mb={2} sx={{ bgcolor: "#f1f6fb", borderRadius: 2 }}>
+          <Box display="flex" alignItems="center" gap={1.25} sx={{ borderRight: { sm: "1px solid #dce6f0" }, px: 1 }}><ReceiptLongRoundedIcon sx={{ color: "#64748b" }} /><Box><Typography variant="caption" color="text.secondary">Quotation No.</Typography><Typography variant="body2" fontWeight={800} color="#0f1e3a">QT-{id?.slice(-8).toUpperCase()} · V{quotation.version}</Typography></Box></Box>
+          <Box display="flex" alignItems="center" gap={1.25} sx={{ borderRight: { sm: "1px solid #dce6f0" }, px: 1 }}><CalendarTodayRoundedIcon sx={{ color: "#64748b" }} /><Box><Typography variant="caption" color="text.secondary">Prepared Date</Typography><Typography variant="body2" fontWeight={800} color="#0f1e3a">{new Date(quotation.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</Typography></Box></Box>
+          <Box display="flex" alignItems="center" gap={1.25} sx={{ px: 1 }}><RouteRoundedIcon sx={{ color: "#64748b" }} /><Box><Typography variant="caption" color="text.secondary">Destination</Typography><Typography variant="body2" fontWeight={800} color="#0f1e3a">{quotation.enquiry?.destination || "Travel proposal"}</Typography></Box></Box>
+        </Box>
+
+        <Box display="grid" gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }} gap={2} mb={2}>
+          <Box p={{ xs: 2, sm: 2.25 }} sx={{ bgcolor: "#f3f8ff", borderRadius: 2, border: "1px solid #d5e5fa" }}>
+            <Box display="flex" alignItems="center" gap={0.8} mb={1.2}><PersonRoundedIcon sx={{ color: "#526783", fontSize: 18 }} /><Typography variant="caption" fontWeight={800} color="#526783" textTransform="uppercase">Prepared for</Typography></Box>
+            <Typography variant="subtitle1" fontWeight={800} color="#0f1e3a">{quotation.customer?.name || "Valued Customer"}</Typography>
+            {quotation.customer?.phone && <Box display="flex" alignItems="center" gap={0.7} mt={0.55}><PhoneRoundedIcon sx={{ fontSize: 15, color: "#526783" }} /><Typography variant="body2" color="text.secondary">{quotation.customer.phone}</Typography></Box>}
+            {quotation.customer?.email && <Box display="flex" alignItems="center" gap={0.7} mt={0.35}><EmailRoundedIcon sx={{ fontSize: 15, color: "#526783" }} /><Typography variant="body2" color="text.secondary">{quotation.customer.email}</Typography></Box>}
+          </Box>
+          <Box p={{ xs: 2, sm: 2.25 }} sx={{ bgcolor: "#f3faf7", borderRadius: 2, border: "1px solid #d4eee2" }}>
+            <Box display="flex" alignItems="center" gap={0.8} mb={1.2}><RouteRoundedIcon sx={{ color: "#16835b", fontSize: 18 }} /><Typography variant="caption" fontWeight={800} color="#526783" textTransform="uppercase">Travel itinerary</Typography></Box>
+            <Typography variant="subtitle1" fontWeight={800} color="#0f1e3a">{[quotation.enquiry?.pickupLocation || quotation.enquiry?.source, quotation.enquiry?.destination].filter(Boolean).join(" → ") || "Open Route"}</Typography>
+            <Box display="flex" alignItems="center" gap={0.7} mt={0.55}><CalendarTodayRoundedIcon sx={{ fontSize: 15, color: "#526783" }} /><Typography variant="body2" color="text.secondary">Travel date: {quotation.enquiry?.travelDate ? new Date(quotation.enquiry.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "To be confirmed"}</Typography></Box>
           </Box>
         </Box>
 
-        {/* Cost Breakdown Table */}
-        <Table sx={{ mb: 3 }}>
-          <TableHead sx={{ bgcolor: "#fafcff" }}>
-            <TableRow sx={{ borderBottom: "2px solid #eef2f6" }}>
-              <TableCell sx={{ fontWeight: 800, color: "#64748b", py: 1.75, px: 2, fontSize: "0.75rem", letterSpacing: "0.05em" }}>
-                ITEM DESCRIPTION
-              </TableCell>
-              <TableCell align="right" sx={{ fontWeight: 800, color: "#64748b", py: 1.75, px: 2, fontSize: "0.75rem", letterSpacing: "0.05em" }}>
-                AMOUNT (INR)
-              </TableCell>
-            </TableRow>
-          </TableHead>
-
+        <Table size="small" sx={{ mb: 2, "& th, & td": { px: { xs: 1.25, sm: 2 } } }}>
+          <TableHead sx={{ bgcolor: "#f1f6fb" }}><TableRow><TableCell sx={{ color: "#788ba5", fontWeight: 800, fontSize: "0.68rem", letterSpacing: ".06em", py: 1 }}>DESCRIPTION</TableCell><TableCell align="right" sx={{ color: "#788ba5", fontWeight: 800, fontSize: "0.68rem", letterSpacing: ".06em", py: 1 }}>AMOUNT (INR)</TableCell></TableRow></TableHead>
           <TableBody>
-            {items.map((item, i) => (
-              <TableRow key={i} sx={{ borderBottom: "1px solid #f8fafc" }}>
-                <TableCell sx={{ py: 1.75, px: 2 }}>
-                  <Typography variant="body2" fontWeight={600} color="#1e293b">
-                    {item.description}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right" sx={{ py: 1.75, px: 2 }}>
-                  <Typography variant="body2" fontWeight={700} color="#334155">
-                    ₹{((item.amountInPaise || 0) / 100).toLocaleString("en-IN")}
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ))}
-
-            {/* Adjustments: Markup / Discount / Tax */}
-            <TableRow sx={{ borderTop: "1px solid #eef2f6" }}>
-              <TableCell sx={{ py: 1.25, px: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Service Fee / Markup
-                </Typography>
-              </TableCell>
-              <TableCell align="right" sx={{ py: 1.25, px: 2 }}>
-                <Typography variant="body2" fontWeight={600} color="#475569">
-                  ₹{((quotation.markupInPaise || 0) / 100).toLocaleString("en-IN")}
-                </Typography>
-              </TableCell>
-            </TableRow>
-
-            <TableRow>
-              <TableCell sx={{ py: 1.25, px: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Applied Discount
-                </Typography>
-              </TableCell>
-              <TableCell align="right" sx={{ py: 1.25, px: 2 }}>
-                <Typography variant="body2" fontWeight={600} color="#dc2626">
-                  -₹{((quotation.discountInPaise || 0) / 100).toLocaleString("en-IN")}
-                </Typography>
-              </TableCell>
-            </TableRow>
-
-            <TableRow>
-              <TableCell sx={{ py: 1.25, px: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Goods & Services Tax (GST)
-                </Typography>
-              </TableCell>
-              <TableCell align="right" sx={{ py: 1.25, px: 2 }}>
-                <Typography variant="body2" fontWeight={600} color="#475569">
-                  ₹{((quotation.taxInPaise || 0) / 100).toLocaleString("en-IN")}
-                </Typography>
-              </TableCell>
-            </TableRow>
-
-            {/* Total Highlight */}
-            <TableRow sx={{ bgcolor: "#fafcff", borderTop: "2px solid #e2e8f0" }}>
-              <TableCell sx={{ py: 2, px: 2 }}>
-                <Typography variant="subtitle1" fontWeight={900} color="#0f172a">
-                  Final Net Payable
-                </Typography>
-              </TableCell>
-              <TableCell align="right" sx={{ py: 2, px: 2 }}>
-                <Typography variant="h6" fontWeight={900} color="#2563eb">
-                  ₹{((quotation.totalInPaise || 0) / 100).toLocaleString("en-IN")}
-                </Typography>
-              </TableCell>
-            </TableRow>
+            {items.map((item, i) => <TableRow key={i}><TableCell sx={{ py: 1.5, color: "#334155", fontWeight: 600 }}>{item.description}</TableCell><TableCell align="right" sx={{ py: 1.5, color: "#0f1e3a", fontWeight: 700 }}>₹{((item.amountInPaise || 0) / 100).toLocaleString("en-IN")}</TableCell></TableRow>)}
+            {!!quotation.markupInPaise && <TableRow><TableCell sx={{ py: 1.15, color: "text.secondary" }}>Service Fee / Markup</TableCell><TableCell align="right" sx={{ py: 1.15, fontWeight: 600 }}>₹{(quotation.markupInPaise / 100).toLocaleString("en-IN")}</TableCell></TableRow>}
+            {!!quotation.discountInPaise && <TableRow><TableCell sx={{ py: 1.15, color: "text.secondary" }}>Applied Discount</TableCell><TableCell align="right" sx={{ py: 1.15, color: "#dc2626", fontWeight: 600 }}>−₹{(quotation.discountInPaise / 100).toLocaleString("en-IN")}</TableCell></TableRow>}
+            {!!quotation.taxInPaise && <TableRow><TableCell sx={{ py: 1.15, color: "text.secondary" }}>Goods & Services Tax (GST)</TableCell><TableCell align="right" sx={{ py: 1.15, fontWeight: 600 }}>₹{(quotation.taxInPaise / 100).toLocaleString("en-IN")}</TableCell></TableRow>}
+            <TableRow sx={{ bgcolor: "#fff8e6", "& td": { py: 1.8, borderBottom: 0 } }}><TableCell sx={{ fontWeight: 900, color: "#5d4214", fontSize: "1rem" }}><Box display="flex" alignItems="center" gap={1}><AccountBalanceWalletRoundedIcon sx={{ color: "#b07a00" }} />Final Net Payable</Box></TableCell><TableCell align="right" sx={{ fontWeight: 900, color: "#a87300", fontSize: "1.35rem" }}>₹{((quotation.totalInPaise || 0) / 100).toLocaleString("en-IN")}</TableCell></TableRow>
           </TableBody>
         </Table>
 
-        {/* Terms & Conditions */}
-        {quotation.termsAndConditions && (
-          <Box
-            sx={{
-              mt: 4,
-              p: 2.5,
-              borderRadius: 2.5,
-              bgcolor: "#f8fafc",
-              border: "1px solid #f1f5f9",
-            }}
-          >
-            <Typography
-              variant="caption"
-              fontWeight={800}
-              color="#64748b"
-              textTransform="uppercase"
-              letterSpacing="0.05em"
-              display="block"
-              mb={1}
-            >
-              TERMS & OPERATIONAL CONDITIONS
-            </Typography>
-            <Typography variant="body2" color="#475569" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
-              {quotation.termsAndConditions}
-            </Typography>
-          </Box>
-        )}
+        {quotation.termsAndConditions && <Box p={2} mb={1.5} sx={{ bgcolor: "#f8fafc", border: "1px solid #e8edf4", borderRadius: 2 }}><Typography variant="caption" fontWeight={800} color="#64748b" display="block" mb={0.75}>TERMS & CONDITIONS</Typography><Typography variant="body2" color="#475569" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{quotation.termsAndConditions}</Typography></Box>}
+        <Box display="flex" alignItems="center" gap={1} pt={1.5} borderTop="1px solid #e5edf5"><InfoOutlinedIcon sx={{ color: "#64748b", fontSize: 18 }} /><Typography variant="caption" color="text.secondary">Thank you for considering us for your travel plans. Prices and availability are subject to confirmation.</Typography></Box>
       </Paper>
     </Box>
   );

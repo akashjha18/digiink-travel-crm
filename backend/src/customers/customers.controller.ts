@@ -26,7 +26,7 @@ customersRouter.get("/", requirePermission("customers", "view"), async (req, res
           : {}),
       },
       orderBy: { createdAt: "desc" },
-      take: 200,
+      take: 1000,
     });
     return ok(res, customers);
   } catch (err) {

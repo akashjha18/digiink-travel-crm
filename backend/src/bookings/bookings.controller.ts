@@ -34,6 +34,129 @@ bookingsRouter.get("/", requirePermission("bookings", "view"), async (req, res, 
   }
 });
 
+const createBookingSchema = z.object({
+  customerId: z.string().optional(),
+  customerName: z.string().trim().optional(),
+  customerPhone: z.string().trim().optional(),
+  customerEmail: z.string().trim().email().optional().or(z.literal("")),
+  pickup: z.string().trim().min(1),
+  drop: z.string().trim().min(1),
+  travelStart: z.coerce.date().optional(),
+  travelEnd: z.coerce.date().optional(),
+  vehicleType: z.string().optional(),
+  distance: z.string().optional(),
+  duration: z.string().optional(),
+  fareInPaise: z.number().int().positive(),
+  status: z.enum(["CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).default("CONFIRMED"),
+  paymentStatus: z.enum(["UNPAID", "PARTIAL", "PAID"]).default("UNPAID"),
+  paidAmountInPaise: z.number().int().nonnegative().optional(),
+  driverId: z.string().optional(),
+  vehicleId: z.string().optional(),
+  notes: z.string().optional(),
+}).refine((input) => Boolean(input.customerId) || Boolean(input.customerName && input.customerPhone), {
+  message: "Select an existing customer or enter a name and phone for a new customer",
+});
+
+bookingsRouter.post("/", requirePermission("bookings", "add"), async (req, res, next) => {
+  try {
+    const input = createBookingSchema.parse(req.body);
+    const paidAmountInPaise = input.paymentStatus === "PAID"
+      ? input.fareInPaise
+      : input.paymentStatus === "PARTIAL" ? (input.paidAmountInPaise ?? 0) : 0;
+    if (paidAmountInPaise > input.fareInPaise || (input.paymentStatus === "PARTIAL" && (paidAmountInPaise <= 0 || paidAmountInPaise >= input.fareInPaise))) {
+      return fail(res, 400, "Enter a paid amount less than the fare for a partial payment", "INVALID_PAYMENT_AMOUNT");
+    }
+    const existingCustomer = input.customerId
+      ? await prisma.customer.findFirst({ where: { id: input.customerId, clientId: req.clientId! } })
+      : null;
+    if (input.customerId && !existingCustomer) return fail(res, 404, "Customer not found", "CUSTOMER_NOT_FOUND");
+    if (input.driverId) {
+      const driver = await prisma.driver.findFirst({ where: { id: input.driverId, clientId: req.clientId! } });
+      if (!driver) return fail(res, 400, "Driver not found", "DRIVER_NOT_FOUND");
+    }
+    if (input.vehicleId) {
+      const vehicle = await prisma.vehicle.findFirst({ where: { id: input.vehicleId, clientId: req.clientId! } });
+      if (!vehicle) return fail(res, 400, "Vehicle not found", "VEHICLE_NOT_FOUND");
+    }
+    const booking = await prisma.$transaction(async (tx) => {
+      const customer = existingCustomer ?? await tx.customer.create({
+        data: {
+          clientId: req.clientId!,
+          name: input.customerName!,
+          phone: input.customerPhone!,
+          email: input.customerEmail || null,
+        },
+      });
+      const enquiry = await tx.enquiry.create({
+        data: {
+          clientId: req.clientId!,
+          customerId: customer.id,
+          pickupLocation: input.pickup,
+          destination: input.drop,
+          travelDate: input.travelStart,
+          vehicleService: input.vehicleType,
+          notes: input.notes,
+          status: "WON",
+        },
+      });
+      const quotation = await tx.quotation.create({
+        data: {
+          clientId: req.clientId!,
+          enquiryId: enquiry.id,
+          customerId: customer.id,
+          version: 1,
+          itineraryJson: [{ pickup: input.pickup, drop: input.drop, vehicleType: input.vehicleType, distance: input.distance, duration: input.duration }],
+          totalInPaise: input.fareInPaise,
+          status: "ACCEPTED",
+          termsAndConditions: input.notes,
+        },
+      });
+      const created = await tx.booking.create({
+        data: {
+          clientId: req.clientId!,
+          quotationId: quotation.id,
+          customerId: customer.id,
+          travelStart: input.travelStart,
+          travelEnd: input.travelEnd,
+          amountInPaise: input.fareInPaise,
+          status: input.status,
+          driverId: input.driverId || null,
+          vehicleId: input.vehicleId || null,
+        },
+      });
+      await tx.trip.create({
+        data: {
+          clientId: req.clientId!,
+          bookingId: created.id,
+          startDate: input.travelStart,
+          endDate: input.travelEnd,
+          pickup: input.pickup,
+          drop: input.drop,
+          driverId: input.driverId || null,
+          vehicleId: input.vehicleId || null,
+          itineraryNotes: [input.vehicleType, input.distance && `Distance: ${input.distance}`, input.duration && `Duration: ${input.duration}`, input.notes].filter(Boolean).join("\n") || null,
+        },
+      });
+      if (paidAmountInPaise > 0) {
+        await tx.payment.create({
+          data: { clientId: req.clientId!, bookingId: created.id, customerId: customer.id, amountInPaise: paidAmountInPaise, mode: "MANUAL", paymentDate: new Date(), recordedById: req.auth!.sub, notes: "Recorded during booking creation" },
+        });
+      }
+      return created;
+    });
+    await logTenantAction({ clientId: req.clientId!, userId: req.auth!.sub, action: "CREATE_BOOKING", target: booking.id, metadata: { source: "direct" } });
+
+    if (booking.status === "CONFIRMED") {
+      emitWorkflowEvent({ clientId: req.clientId!, eventType: "BOOKING_CONFIRMED", targetType: "BOOKING", targetId: booking.id }).catch((err) => {
+        console.error("[workflow:BOOKING_CONFIRMED:create]", err);
+      });
+    }
+    return ok(res, booking, "Booking created");
+  } catch (err) {
+    next(err);
+  }
+});
+
 bookingsRouter.get("/:id", requirePermission("bookings", "view"), async (req, res, next) => {
   try {
     const booking = await prisma.booking.findFirst({
